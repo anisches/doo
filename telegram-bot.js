@@ -1,4 +1,5 @@
-import { runAgent, SYSTEM_PROMPT } from './agent-core.js';
+import { runAgent, buildSystemPrompt } from './agent-core.js';
+import { boot } from './boot/index.js';
 
 function chunkText(text, limit = 4096) {
   if (text.length <= limit) {
@@ -45,9 +46,10 @@ class TelegramBot {
     this.histories = new Map();
   }
 
-  historyFor(chatId) {
+  async historyFor(chatId) {
     if (!this.histories.has(chatId)) {
-      this.histories.set(chatId, [{ role: 'system', content: SYSTEM_PROMPT }]);
+      const bootSections = await boot();
+      this.histories.set(chatId, [{ role: 'system', content: buildSystemPrompt(bootSections) }]);
     }
 
     return this.histories.get(chatId);
@@ -72,11 +74,12 @@ class TelegramBot {
 
   async start(chatId) {
     await this.sendTyping(chatId);
-    await this.reply(chatId, 'Send me a message and I will answer using the same Fluxyard agent.');
+    await this.reply(chatId, 'Hey! Send me a message.');
   }
 
   async reset(chatId) {
-    this.histories.set(chatId, [{ role: 'system', content: SYSTEM_PROMPT }]);
+    const bootSections = await boot();
+    this.histories.set(chatId, [{ role: 'system', content: buildSystemPrompt(bootSections) }]);
     await this.reply(chatId, 'Conversation reset.');
   }
 
@@ -87,7 +90,7 @@ class TelegramBot {
     }
 
     await this.sendTyping(chatId);
-    const history = this.historyFor(chatId);
+    const history = await this.historyFor(chatId);
     history.push({ role: 'user', content: trimmed });
 
     const reply = await runAgent(history, this.config);

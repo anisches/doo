@@ -5,14 +5,6 @@ import { TOOLS, dispatch } from './tools/registry.js';
 export const SYSTEM_PROMPT = `
 You are a helpful and friendly AI agent. Be conversational, clear, and a little fun. No need to be stiff.
 
-You have tools available:
-- web_search   -> use when the user needs current info, news, or anything worth looking up
-- switch_model -> call when the user says "switch to X", "use X model", "change model to X"
-- set_config   -> call when the user wants to store a setting, for example:
-                 "set my ollama api key to sk-xxx"
-                 "set ollama host to http://192.168.1.10:11434"
-                 "set search_api_key to ..."
-
 If web_search returns a message starting with MISSING_OLLAMA_API_KEY:
   1. Tell the user you need an Ollama API key to search the web.
   2. Ask them to paste it in.
@@ -20,7 +12,14 @@ If web_search returns a message starting with MISSING_OLLAMA_API_KEY:
   4. Then retry the search.
 
 Use tools silently. No need to narrate them. Just get things done.
+
+Be curious ,  answer in a friendly manner , bee keen on doing things !!
 `.trim();
+
+export function buildSystemPrompt(bootSections = []) {
+  const sections = bootSections.map((b) => b.content).join('\n\n');
+  return sections ? `${SYSTEM_PROMPT}\n\n${sections}` : SYSTEM_PROMPT;
+}
 
 function apiBase(host) {
   const trimmed = host.replace(/\/+$/, '');
@@ -59,6 +58,28 @@ async function chat(messages, config) {
   return response.json();
 }
 
+function parseTextToolCalls(content) {
+  const calls = [];
+  const re = /<function=(\w+)>([\s\S]*?)<\/function>/g;
+  let match;
+  while ((match = re.exec(content)) !== null) {
+    const name = match[1];
+    const body = match[2];
+    const args = {};
+    const paramRe = /<parameter=(\w+)>([\s\S]*?)<\/parameter>/g;
+    let p;
+    while ((p = paramRe.exec(body)) !== null) {
+      args[p[1]] = p[2].trim();
+    }
+    calls.push({ name, args });
+  }
+  return calls;
+}
+
+function stripTextToolCalls(content) {
+  return content.replace(/<function=[\s\S]*?<\/function>/g, '').trim();
+}
+
 function normalizeToolArgs(args) {
   if (typeof args === 'string') {
     try {
@@ -87,21 +108,32 @@ function messageToHistory(message) {
 export async function runAgent(messages, config) {
   const runtimeConfig = config instanceof Config ? config : config;
 
-  for (;;) {
+  for (; ;) {
     process.stdout.write(`\n[${runtimeConfig.model}] thinking...\r`);
     const response = await chat(messages, runtimeConfig);
     process.stdout.write('\x1b[2K\r');
 
     const msg = response.message || {};
-    messages.push(messageToHistory(msg));
 
-    if (!Array.isArray(msg.tool_calls) || msg.tool_calls.length === 0) {
+    const structuredCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
+    const textCalls = !structuredCalls ? parseTextToolCalls(msg.content || '') : [];
+
+    if (!structuredCalls && textCalls.length === 0) {
+      messages.push(messageToHistory(msg));
       return msg.content || '';
     }
 
-    for (const toolCall of msg.tool_calls) {
-      const name = toolCall?.function?.name;
-      const args = normalizeToolArgs(toolCall?.function?.arguments);
+    if (textCalls.length > 0) {
+      msg.content = stripTextToolCalls(msg.content || '');
+    }
+
+    messages.push(messageToHistory(msg));
+
+    const toolCalls = structuredCalls
+      ? msg.tool_calls.map((tc) => ({ name: tc?.function?.name, args: normalizeToolArgs(tc?.function?.arguments) }))
+      : textCalls;
+
+    for (const { name, args } of toolCalls) {
 
       console.log(`  -> ${name}(${JSON.stringify(args)})`);
       const result = await dispatch(name, args, runtimeConfig);
@@ -112,12 +144,7 @@ export async function runAgent(messages, config) {
         console.log(`  saved ${args.key}`);
       }
 
-      messages.push({
-        role: 'tool',
-        tool_name: name,
-        name,
-        content: result,
-      });
+      messages.push({ role: 'tool', tool_name: name, name, content: result });
     }
 
     await sleep(0);

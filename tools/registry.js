@@ -1,4 +1,7 @@
 import { search } from './web-search.js';
+import { readFile, writeFile, editFile } from './file-ops.js';
+import { renderRhizome, learnSkill } from '../rhizome/index.js';
+import { storeSet } from '../store.js';
 
 export const TOOLS = [
   {
@@ -36,6 +39,78 @@ export const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'read_file',
+      description: 'Read the contents of a file from the filesystem.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Absolute or relative path to the file' },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'write_file',
+      description: 'Write content to a file, creating it if it does not exist or overwriting it.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Path to the file' },
+          content: { type: 'string', description: 'Content to write' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'edit_file',
+      description: 'Replace an exact string inside a file with new text.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Path to the file' },
+          old_str: { type: 'string', description: 'Exact string to find and replace' },
+          new_str: { type: 'string', description: 'Replacement string' },
+        },
+        required: ['path', 'old_str', 'new_str'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'learn_skill',
+      description: 'Persist a newly discovered skill so the agent remembers it across sessions. Returns the updated rhizome immediately.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Short skill name' },
+          description: { type: 'string', description: 'What this skill does' },
+        },
+        required: ['name', 'description'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_rhizome',
+      description: 'Get a live snapshot of what this agent can currently do — raw tools, preset skills, and learned skills.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'set_config',
       description:
         'Save a configuration value. Use this when the user wants to set an API key, change the Ollama host URL, or store any setting. Known keys: ollama_api_key, ollama_host.',
@@ -67,8 +142,32 @@ export async function dispatch(name, args, config) {
     return `Model switched to ${args.model}.`;
   }
 
+  if (name === 'read_file') {
+    return readFile(args.path);
+  }
+
+  if (name === 'write_file') {
+    return writeFile(args.path, args.content);
+  }
+
+  if (name === 'edit_file') {
+    return editFile(args.path, args.old_str, args.new_str);
+  }
+
+  if (name === 'learn_skill') {
+    return learnSkill(args.name, args.description);
+  }
+
+  if (name === 'query_rhizome') {
+    return renderRhizome();
+  }
+
   if (name === 'set_config') {
-    config.set(args.key, args.value);
+    if (args.key === 'user_name') {
+      storeSet('identity', 'user_name', args.value);
+    } else {
+      config.set(args.key, args.value);
+    }
     return `Saved ${args.key}.`;
   }
 

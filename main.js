@@ -2,16 +2,16 @@ import readline from 'node:readline/promises';
 import process from 'node:process';
 
 import { Config } from './config.js';
-import { SYSTEM_PROMPT, runAgent } from './agent-core.js';
+import { buildSystemPrompt, runAgent } from './agent-core.js';
+import { boot } from './boot/index.js';
 import { runTelegramBot } from './telegram-bot.js';
 
 function printBanner(config) {
   console.log('');
-  console.log('FLUXYARD');
+  console.log('doo');
   console.log(`model: ${config.model}`);
   console.log(`host:  ${config.ollamaHost}`);
   console.log('type exit or quit to leave');
-  console.log('tools: web_search, switch_model, set_config');
   console.log('');
 }
 
@@ -19,7 +19,8 @@ async function runCli() {
   const config = new Config();
   printBanner(config);
 
-  const history = [{ role: 'system', content: SYSTEM_PROMPT }];
+  const bootSections = await boot();
+  const history = [{ role: 'system', content: buildSystemPrompt(bootSections) }];
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -31,7 +32,7 @@ async function runCli() {
       try {
         userInput = (await rl.question('You > ')).trim();
       } catch (error) {
-        console.log('\ncynically departing...');
+        console.log('\nbye.');
         break;
       }
 
@@ -40,7 +41,7 @@ async function runCli() {
       }
 
       if (userInput.toLowerCase() === 'exit' || userInput.toLowerCase() === 'quit') {
-        console.log('finally, someone who knows when to leave.');
+        console.log('bye.');
         break;
       }
 
@@ -49,7 +50,7 @@ async function runCli() {
       history.push({ role: 'assistant', content: reply });
 
       console.log('');
-      console.log(`Fluxyard (${config.model})`);
+      console.log(`doo (${config.model})`);
       console.log(reply || '(no response)');
       console.log('---');
       console.log('');
