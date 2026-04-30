@@ -1,5 +1,6 @@
 import { runAgent, buildSystemPrompt } from './agent-core.js';
 import { boot } from './boot/index.js';
+import { watchTurn } from './memory/watcher.js';
 
 function chunkText(text, limit = 4096) {
   if (text.length <= limit) {
@@ -95,6 +96,7 @@ class TelegramBot {
 
     const reply = await runAgent(history, this.config);
     history.push({ role: 'assistant', content: reply });
+    watchTurn(trimmed, reply, this.config);
     await this.reply(chatId, reply);
   }
 

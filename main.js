@@ -4,6 +4,7 @@ import process from 'node:process';
 import { Config } from './config.js';
 import { buildSystemPrompt, runAgent } from './agent-core.js';
 import { boot } from './boot/index.js';
+import { watchTurn } from './memory/watcher.js';
 import { runTelegramBot } from './telegram-bot.js';
 
 function printBanner(config) {
@@ -48,6 +49,7 @@ async function runCli() {
       history.push({ role: 'user', content: userInput });
       const reply = await runAgent(history, config);
       history.push({ role: 'assistant', content: reply });
+      watchTurn(userInput, reply, config);
 
       console.log('');
       console.log(`doo (${config.model})`);
