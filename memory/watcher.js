@@ -18,8 +18,6 @@ Agent: ${agent}
 What to save (only this):
 - User section: facts about the person (name, job, preferences, what they're building)
 - Patterns section: how they communicate or work (prefers brevity, corrects often, technical)
-- If 
-
 
 Rules:
 - If something matches/extends an existing entry → update it, don't duplicate

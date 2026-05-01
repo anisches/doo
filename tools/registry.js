@@ -5,6 +5,7 @@ import { runCommand } from './shell.js';
 import { addSchedule, removeSchedule, listSchedules } from './cron.js';
 import { renderRhizome, learnSkill } from '../rhizome/index.js';
 import { storeSet } from '../store.js';
+import { reviewRemlandSession, queryRemlandSession } from '../remland/review.js';
 
 export const TOOLS = [
   {
@@ -144,6 +145,30 @@ export const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'query_remland',
+      description: 'Inspect the current REMland log and latest self-eval for this session.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'review_remland',
+      description: 'Generate a fresh REMland retrospective from the current session log and save it.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'schedule',
       description: 'Schedule a recurring task. The agent will perform the task at the given interval automatically.',
       parameters: {
@@ -238,6 +263,20 @@ export async function dispatch(name, args, config) {
 
   if (name === 'query_rhizome') {
     return renderRhizome();
+  }
+
+  if (name === 'query_remland') {
+    if (!config.remlandSessionId) {
+      return 'No REMland session is active.';
+    }
+    return queryRemlandSession(config.remlandSessionId);
+  }
+
+  if (name === 'review_remland') {
+    if (!config.remlandSessionId) {
+      return 'No REMland session is active.';
+    }
+    return reviewRemlandSession(config.remlandSessionId, config);
   }
 
   if (name === 'schedule') {

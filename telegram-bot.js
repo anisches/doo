@@ -2,6 +2,9 @@ import { runAgent, buildSystemPrompt } from './agent-core.js';
 import { boot } from './boot/index.js';
 import { watchTurn } from './memory/watcher.js';
 import { startScheduler } from './scheduler.js';
+import { beginRemlandTurn, createRemlandSession, reviewRemlandSession } from './remland/index.js';
+
+const REQUEST_TIMEOUT_MS = 45_000;
 
 function chunkText(text, limit = 4096) {
   if (text.length <= limit) {
@@ -27,25 +30,57 @@ function chunkText(text, limit = 4096) {
   return chunks;
 }
 
-async function telegramRequest(token, method, body) {
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Telegram API ${method} failed (${response.status}): ${text}`);
+function describeError(error) {
+  if (!(error instanceof Error)) {
+    return String(error);
   }
 
-  return response.json();
+  const cause = error.cause;
+  if (cause && typeof cause === 'object') {
+    const parts = [];
+    if (typeof cause.code === 'string') parts.push(cause.code);
+    if (typeof cause.message === 'string') parts.push(cause.message);
+    if (parts.length > 0) {
+      return `${error.message} (${parts.join(': ')})`;
+    }
+  }
+
+  return error.message;
+}
+
+async function telegramRequest(token, method, body, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Telegram API ${method} failed (${response.status}): ${text}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    const message = error instanceof Error && error.name === 'AbortError'
+      ? `Telegram API ${method} timed out after ${timeoutMs}ms`
+      : `Telegram API ${method} request failed: ${describeError(error)}`;
+    throw new Error(message);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 class TelegramBot {
   constructor(config) {
     this.config = config;
     this.histories = new Map();
+    this.remlandSessions = new Map();
     this.lastChatId = null;
   }
 
@@ -56,6 +91,14 @@ class TelegramBot {
     }
 
     return this.histories.get(chatId);
+  }
+
+  remlandSessionFor(chatId) {
+    if (!this.remlandSessions.has(chatId)) {
+      this.remlandSessions.set(chatId, createRemlandSession('telegram', { chatId }));
+    }
+
+    return this.remlandSessions.get(chatId);
   }
 
   async reply(chatId, text) {
@@ -94,12 +137,28 @@ class TelegramBot {
 
     await this.sendTyping(chatId);
     const history = await this.historyFor(chatId);
+    const remlandSession = this.remlandSessionFor(chatId);
+    this.config.remlandSessionId = remlandSession.id;
+    const turn = beginRemlandTurn(remlandSession.id, { channel: 'telegram', chatId, text: trimmed });
     history.push({ role: 'user', content: trimmed });
 
-    const reply = await runAgent(history, this.config);
+    let reply = '';
+    let error = null;
+    try {
+      reply = await runAgent(history, this.config, turn);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      throw err;
+    } finally {
+      turn.finish({ reply, error });
+    }
     history.push({ role: 'assistant', content: reply });
     watchTurn(trimmed, reply, this.config);
     await this.reply(chatId, reply);
+
+    if (/can't|cannot|couldn't|unable|need/i.test(reply || '')) {
+      reviewRemlandSession(remlandSession.id, this.config).catch(() => { });
+    }
   }
 
   async processUpdate(update) {
@@ -148,6 +207,7 @@ class TelegramBot {
 
     console.log('Telegram bot is running. Press Ctrl+C to stop.');
     let offset = 0;
+    let backoffMs = 2000;
 
     for (;;) {
       try {
@@ -158,13 +218,16 @@ class TelegramBot {
         });
 
         const updates = Array.isArray(response.result) ? response.result : [];
+        backoffMs = 2000;
         for (const update of updates) {
           offset = Math.max(offset, (update.update_id || 0) + 1);
           await this.processUpdate(update);
         }
       } catch (error) {
-        console.error(`Telegram polling error: ${error instanceof Error ? error.message : String(error)}`);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Telegram polling error: ${message}`);
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        backoffMs = Math.min(backoffMs * 2, 30_000);
       }
     }
   }

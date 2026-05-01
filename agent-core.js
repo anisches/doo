@@ -107,7 +107,7 @@ function messageToHistory(message) {
   return entry;
 }
 
-export async function runAgent(messages, config) {
+export async function runAgent(messages, config, hooks = {}) {
   const runtimeConfig = config instanceof Config ? config : config;
 
   for (; ;) {
@@ -121,6 +121,7 @@ export async function runAgent(messages, config) {
     const textCalls = !structuredCalls ? parseTextToolCalls(msg.content || '') : [];
 
     if (!structuredCalls && textCalls.length === 0) {
+      hooks.onAssistantMessage?.(msg.content || '');
       messages.push(messageToHistory(msg));
       return msg.content || '';
     }
@@ -136,9 +137,11 @@ export async function runAgent(messages, config) {
       : textCalls;
 
     for (const { name, args } of toolCalls) {
+      hooks.onToolCall?.({ name, args });
 
       console.log(`  -> ${name}(${JSON.stringify(args)})`);
       const result = await dispatch(name, args, runtimeConfig);
+      hooks.onToolResult?.({ name, args, result });
 
       if (name === 'switch_model') {
         console.log(`  model -> ${runtimeConfig.model}`);

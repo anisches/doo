@@ -7,6 +7,7 @@ import { boot } from './boot/index.js';
 import { watchTurn } from './memory/watcher.js';
 import { runTelegramBot } from './telegram-bot.js';
 import { startScheduler } from './scheduler.js';
+import { beginRemlandTurn, createRemlandSession, reviewRemlandSession } from './remland/index.js';
 
 function printBanner(config) {
   console.log('');
@@ -19,6 +20,8 @@ function printBanner(config) {
 
 async function runCli() {
   const config = new Config();
+  const remlandSession = createRemlandSession('cli');
+  config.remlandSessionId = remlandSession.id;
   printBanner(config);
 
   const bootSections = await boot();
@@ -49,7 +52,17 @@ async function runCli() {
       }
 
       history.push({ role: 'user', content: userInput });
-      const reply = await runAgent(history, config);
+      const turn = beginRemlandTurn(remlandSession.id, { channel: 'cli', userInput });
+      let reply = '';
+      let error = null;
+      try {
+        reply = await runAgent(history, config, turn);
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err);
+        throw err;
+      } finally {
+        turn.finish({ reply, error });
+      }
       history.push({ role: 'assistant', content: reply });
       watchTurn(userInput, reply, config);
 
@@ -60,6 +73,9 @@ async function runCli() {
       console.log('');
     }
   } finally {
+    if (config.remlandSessionId) {
+      reviewRemlandSession(config.remlandSessionId, config).catch(() => { });
+    }
     rl.close();
   }
 }
