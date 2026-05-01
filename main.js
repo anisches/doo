@@ -6,6 +6,7 @@ import { buildSystemPrompt, runAgent } from './agent-core.js';
 import { boot } from './boot/index.js';
 import { watchTurn } from './memory/watcher.js';
 import { runTelegramBot } from './telegram-bot.js';
+import { startScheduler } from './scheduler.js';
 
 function printBanner(config) {
   console.log('');
@@ -21,6 +22,7 @@ async function runCli() {
   printBanner(config);
 
   const bootSections = await boot();
+  startScheduler((text) => { console.log('\n[scheduled]\n' + text + '\n---\n'); }, config);
   const history = [{ role: 'system', content: buildSystemPrompt(bootSections) }];
   const rl = readline.createInterface({
     input: process.stdin,

@@ -2,6 +2,7 @@ import { search } from './web-search.js';
 import { readFile, writeFile, editFile } from './file-ops.js';
 import { callOllama } from './ollama.js';
 import { runCommand } from './shell.js';
+import { addSchedule, removeSchedule, listSchedules } from './cron.js';
 import { renderRhizome, learnSkill } from '../rhizome/index.js';
 import { storeSet } from '../store.js';
 
@@ -143,6 +144,43 @@ export const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'schedule',
+      description: 'Schedule a recurring task. The agent will perform the task at the given interval automatically.',
+      parameters: {
+        type: 'object',
+        properties: {
+          task: { type: 'string', description: 'What to do, e.g. "say hi" or "check disk space"' },
+          interval: { type: 'string', description: 'How often: e.g. 5m, 1h, 30s, 1d' },
+        },
+        required: ['task', 'interval'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'unschedule',
+      description: 'Remove a scheduled task by its ID.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Schedule ID returned when the task was created' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_schedules',
+      description: 'List all active scheduled tasks.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'set_config',
       description:
         'Save a configuration value. Use this when the user wants to set an API key, change the Ollama host URL, or store any setting. Known keys: ollama_api_key, ollama_host.',
@@ -200,6 +238,18 @@ export async function dispatch(name, args, config) {
 
   if (name === 'query_rhizome') {
     return renderRhizome();
+  }
+
+  if (name === 'schedule') {
+    return addSchedule(args.task, args.interval);
+  }
+
+  if (name === 'unschedule') {
+    return removeSchedule(args.id);
+  }
+
+  if (name === 'list_schedules') {
+    return listSchedules();
   }
 
   if (name === 'set_config') {

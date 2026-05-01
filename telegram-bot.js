@@ -1,6 +1,7 @@
 import { runAgent, buildSystemPrompt } from './agent-core.js';
 import { boot } from './boot/index.js';
 import { watchTurn } from './memory/watcher.js';
+import { startScheduler } from './scheduler.js';
 
 function chunkText(text, limit = 4096) {
   if (text.length <= limit) {
@@ -45,6 +46,7 @@ class TelegramBot {
   constructor(config) {
     this.config = config;
     this.histories = new Map();
+    this.lastChatId = null;
   }
 
   async historyFor(chatId) {
@@ -126,6 +128,7 @@ class TelegramBot {
       return;
     }
 
+    this.lastChatId = chatId;
     await this.handleText(chatId, text);
   }
 
@@ -138,6 +141,10 @@ class TelegramBot {
     await telegramRequest(token, 'deleteWebhook', {
       drop_pending_updates: true,
     });
+
+    startScheduler(async (text) => {
+      if (this.lastChatId) await this.reply(this.lastChatId, text);
+    }, this.config);
 
     console.log('Telegram bot is running. Press Ctrl+C to stop.');
     let offset = 0;
