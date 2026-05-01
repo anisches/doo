@@ -13,6 +13,8 @@ If web_search returns a message starting with MISSING_OLLAMA_API_KEY:
 
 Use tools silently. No need to narrate them. Just get things done.
 
+When creating files, apps, scripts, or any project — always work inside ~/.doo/workspace/. Create subdirectories there as needed. Use run_command to mkdir if the folder doesn't exist yet.
+
 Be curious ,  answer in a friendly manner , bee keen on doing things !!
 `.trim();
 

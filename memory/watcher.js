@@ -6,28 +6,32 @@ function apiBase(host) {
 }
 
 const PROMPT = (memory, user, agent) => `
-You are a memory distiller for an AI agent. Your job is to keep a lean, living schema of what's worth remembering about the user and the conversation context.
+You are a memory distiller. You observe one conversation exchange and decide if anything is worth remembering long-term.
 
-Read the prior memory:
-
+Current memory:
 ${memory}
 
-New exchange:
+Exchange:
 User: ${user}
 Agent: ${agent}
 
-Rules:
-- Only save things that are genuinely new(novelty), revealing, or recurring 
-- Routine chit-chat, simple questions, one-off tasks → discard consider them as noise . 
-- If it updates an existing entry → merge, don't duplicate 
-- If it's new → add as a bullet under the right section (User, Patterns, or Context)
-- Keep entries short, factual, timeless 
+What to save (only this):
+- User section: facts about the person (name, job, preferences, what they're building)
+- Patterns section: how they communicate or work (prefers brevity, corrects often, technical)
+- If 
 
+
+Rules:
+- If something matches/extends an existing entry → update it, don't duplicate
+- If genuinely new about the user or their patterns → add it
+- Otherwise → discard
 
 Respond with ONLY a JSON object, nothing else:
-{ "action": "update" | "new" | "discard", "section": "User" | "Patterns" | "Context", "entry": "one line fact" }
+{ "action": "update" | "new" | "discard", "section": "User" | "Patterns", "entry": "one line fact" }
 
 If discarding: { "action": "discard" }
+
+
 `.trim();
 
 async function distill(user, agent, config) {

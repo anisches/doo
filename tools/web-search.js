@@ -13,8 +13,7 @@ export async function search(query, config = null, maxResults = 5) {
   }
 
   try {
-    const host = config?.ollamaHost || 'https://ollama.com';
-    const response = await fetch(`${apiBase(host)}/web_search`, {
+    const response = await fetch('https://api.ollama.com/api/web_search', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

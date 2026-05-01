@@ -1,5 +1,7 @@
 import { search } from './web-search.js';
 import { readFile, writeFile, editFile } from './file-ops.js';
+import { callOllama } from './ollama.js';
+import { runCommand } from './shell.js';
 import { renderRhizome, learnSkill } from '../rhizome/index.js';
 import { storeSet } from '../store.js';
 
@@ -16,6 +18,36 @@ export const TOOLS = [
           query: { type: 'string', description: 'The search query' },
         },
         required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_command',
+      description: 'Run a shell command on this machine and return the output.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'Shell command to execute' },
+        },
+        required: ['command'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'call_ollama',
+      description: 'Call any Ollama API endpoint directly (e.g. /tags to list models, /show to inspect a model, /pull to download one).',
+      parameters: {
+        type: 'object',
+        properties: {
+          endpoint: { type: 'string', description: 'API path, e.g. /tags or /show' },
+          method: { type: 'string', description: 'HTTP method, default GET', enum: ['GET', 'POST', 'DELETE'] },
+          body: { type: 'object', description: 'Request body for POST requests' },
+        },
+        required: ['endpoint'],
       },
     },
   },
@@ -135,6 +167,14 @@ export const TOOLS = [
 export async function dispatch(name, args, config) {
   if (name === 'web_search') {
     return search(args.query, config);
+  }
+
+  if (name === 'run_command') {
+    return runCommand(args.command);
+  }
+
+  if (name === 'call_ollama') {
+    return callOllama(args.endpoint, args.method || 'GET', args.body || null, config);
   }
 
   if (name === 'switch_model') {

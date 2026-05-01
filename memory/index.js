@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const MEMORY_PATH = path.join(os.homedir(), '.doo', 'memory.md');
 
-const EMPTY = `## User\n\n## Patterns\n\n## Context\n`;
+const EMPTY = `## User\n\n## Patterns\n`;
 
 export function loadMemory() {
   try {
