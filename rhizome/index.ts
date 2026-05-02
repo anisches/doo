@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOOLS } from '../tools/registry.js';
+import { TOOLS } from '../tools/registry.ts';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const PRESET_PATH = resolve(__dir, '../skills/preset.md');

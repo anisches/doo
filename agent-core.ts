@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
-import { Config } from './config.js';
-import { TOOLS, dispatch } from './tools/registry.js';
+import { Config } from './config.ts';
+import { TOOLS, dispatch } from './tools/registry.ts';
 
 export const SYSTEM_PROMPT = `
 You are a helpful and friendly AI agent. Be conversational, clear, and a little fun. No need to be stiff.

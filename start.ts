@@ -7,7 +7,7 @@ function spawnProcess(args, options = {}) {
   });
 }
 
-const telegram = spawnProcess(['main.js', 'telegram'], {
+const telegram = spawnProcess(['--experimental-strip-types', 'main.ts', 'telegram'], {
   stdio: ['ignore', 'inherit', 'inherit'],
 });
 
@@ -19,7 +19,7 @@ telegram.on('exit', (code, signal) => {
   }
 });
 
-const cli = spawnProcess(['main.js']);
+const cli = spawnProcess(['--experimental-strip-types', 'main.ts']);
 
 const shutdown = (code = 0) => {
   if (!telegram.killed) {

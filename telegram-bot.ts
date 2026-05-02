@@ -1,7 +1,7 @@
-import { runAgent, buildSystemPrompt } from './agent-core.js';
-import { boot } from './boot/index.js';
-import { watchTurn } from './memory/watcher.js';
-import { startScheduler } from './scheduler.js';
+import { runAgent, buildSystemPrompt } from './agent-core.ts';
+import { boot } from './boot/index.ts';
+import { watchTurn } from './memory/watcher.ts';
+import { startScheduler } from './scheduler.ts';
 
 const REQUEST_TIMEOUT_MS = 45_000;
 

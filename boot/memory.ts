@@ -1,4 +1,4 @@
-import { loadMemory } from '../memory/index.js';
+import { loadMemory } from '../memory/index.ts';
 
 export function bootMemory() {
   const content = loadMemory();

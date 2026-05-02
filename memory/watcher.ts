@@ -1,4 +1,4 @@
-import { appendMemoryLastSeen, getMissingPrimitives, incrementPrimitiveAskCount, resetPrimitiveAskCount, loadMemory } from './index.js';
+import { appendMemoryLastSeen, getMissingPrimitives, incrementPrimitiveAskCount, resetPrimitiveAskCount, loadMemory } from './index.ts';
 
 function apiBase(host) {
   const trimmed = host.replace(/\/+$/, '');

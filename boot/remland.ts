@@ -1,4 +1,4 @@
-import { loadLatestRemlandReview, loadRemlandBootState, saveRemlandBootState, digestRemlandReview } from '../remland/index.js';
+import { loadLatestRemlandReview, loadRemlandBootState, saveRemlandBootState, digestRemlandReview } from '../remland/index.ts';
 
 export function bootRemland() {
   const content = loadLatestRemlandReview();

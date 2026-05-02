@@ -1,6 +1,6 @@
-import { bootRhizome } from './rhizome.js';
-import { bootIdentity } from './identity.js';
-import { bootMemory } from './memory.js';
+import { bootRhizome } from './rhizome.ts';
+import { bootIdentity } from './identity.ts';
+import { bootMemory } from './memory.ts';
 
 const BRANCHES = [
   () => bootRhizome(),

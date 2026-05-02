@@ -1,10 +1,10 @@
-import { search } from './web-search.js';
-import { readFile, writeFile, editFile } from './file-ops.js';
-import { callOllama } from './ollama.js';
-import { runCommand } from './shell.js';
-import { addSchedule, removeSchedule, listSchedules } from './cron.js';
-import { renderRhizome, learnSkill } from '../rhizome/index.js';
-import { setMemoryField } from '../memory/index.js';
+import { search } from './web-search.ts';
+import { readFile, writeFile, editFile } from './file-ops.ts';
+import { callOllama } from './ollama.ts';
+import { runCommand } from './shell.ts';
+import { addSchedule, removeSchedule, listSchedules } from './cron.ts';
+import { renderRhizome, learnSkill } from '../rhizome/index.ts';
+import { setMemoryField } from '../memory/index.ts';
 
 export const TOOLS = [
   {

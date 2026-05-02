@@ -1,5 +1,5 @@
-import { readRemlandEvents, saveRemlandReview, loadLatestRemlandReview, formatRemlandSnapshot } from './index.js';
-import { TOOLS } from '../tools/registry.js';
+import { readRemlandEvents, saveRemlandReview, loadLatestRemlandReview, formatRemlandSnapshot } from './index.ts';
+import { TOOLS } from '../tools/registry.ts';
 
 function apiBase(host) {
   const trimmed = host.replace(/\/+$/, '');

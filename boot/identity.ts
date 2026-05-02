@@ -5,7 +5,7 @@ import {
   loadMemoryData,
   resetPrimitiveAskCount,
   setMemoryField,
-} from '../memory/index.js';
+} from '../memory/index.ts';
 
 function renderKnownPrimitiveLabels(data) {
   const primitives = data?.primitives || {};

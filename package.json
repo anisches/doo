@@ -7,7 +7,7 @@
     "node": ">=18.17"
   },
   "scripts": {
-    "start": "node start.js",
-    "telegram": "node main.js telegram"
+    "start": "node --experimental-strip-types start.ts",
+    "telegram": "node --experimental-strip-types main.ts telegram"
   }
 }

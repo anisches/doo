@@ -1,12 +1,12 @@
 import readline from 'node:readline/promises';
 import process from 'node:process';
 
-import { Config } from './config.js';
-import { buildSystemPrompt, runAgent } from './agent-core.js';
-import { boot } from './boot/index.js';
-import { watchTurn } from './memory/watcher.js';
-import { runTelegramBot } from './telegram-bot.js';
-import { startScheduler } from './scheduler.js';
+import { Config } from './config.ts';
+import { buildSystemPrompt, runAgent } from './agent-core.ts';
+import { boot } from './boot/index.ts';
+import { watchTurn } from './memory/watcher.ts';
+import { runTelegramBot } from './telegram-bot.ts';
+import { startScheduler } from './scheduler.ts';
 
 function printBanner(config) {
   console.log('');

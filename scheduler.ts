@@ -1,6 +1,6 @@
-import { getDueSchedules, bumpSchedule } from './tools/cron.js';
-import { buildSystemPrompt, runAgent } from './agent-core.js';
-import { boot } from './boot/index.js';
+import { getDueSchedules, bumpSchedule } from './tools/cron.ts';
+import { buildSystemPrompt, runAgent } from './agent-core.ts';
+import { boot } from './boot/index.ts';
 
 const TICK_MS = 30_000;
 
