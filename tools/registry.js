@@ -4,8 +4,7 @@ import { callOllama } from './ollama.js';
 import { runCommand } from './shell.js';
 import { addSchedule, removeSchedule, listSchedules } from './cron.js';
 import { renderRhizome, learnSkill } from '../rhizome/index.js';
-import { storeSet } from '../store.js';
-import { reviewRemlandSession, queryRemlandSession } from '../remland/review.js';
+import { setMemoryField } from '../memory/index.js';
 
 export const TOOLS = [
   {
@@ -145,30 +144,6 @@ export const TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'query_remland',
-      description: 'Inspect the current REMland log and latest self-eval for this session.',
-      parameters: {
-        type: 'object',
-        properties: {},
-        required: [],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'review_remland',
-      description: 'Generate a fresh REMland retrospective from the current session log and save it.',
-      parameters: {
-        type: 'object',
-        properties: {},
-        required: [],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'schedule',
       description: 'Schedule a recurring task. The agent will perform the task at the given interval automatically.',
       parameters: {
@@ -208,7 +183,7 @@ export const TOOLS = [
     function: {
       name: 'set_config',
       description:
-        'Save a configuration value. Use this when the user wants to set an API key, change the Ollama host URL, or store any setting. Known keys: ollama_api_key, ollama_host.',
+        'Save a configuration value or primitive memory field. Use this when the user wants to set an API key, change the Ollama host URL, or store a required memory primitive. Known keys: ollama_api_key, ollama_host, user_name, agent_name, interests.',
       parameters: {
         type: 'object',
         properties: {
@@ -265,20 +240,6 @@ export async function dispatch(name, args, config) {
     return renderRhizome();
   }
 
-  if (name === 'query_remland') {
-    if (!config.remlandSessionId) {
-      return 'No REMland session is active.';
-    }
-    return queryRemlandSession(config.remlandSessionId);
-  }
-
-  if (name === 'review_remland') {
-    if (!config.remlandSessionId) {
-      return 'No REMland session is active.';
-    }
-    return reviewRemlandSession(config.remlandSessionId, config);
-  }
-
   if (name === 'schedule') {
     return addSchedule(args.task, args.interval);
   }
@@ -292,8 +253,8 @@ export async function dispatch(name, args, config) {
   }
 
   if (name === 'set_config') {
-    if (args.key === 'user_name') {
-      storeSet('identity', 'user_name', args.value);
+    if (args.key === 'user_name' || args.key === 'agent_name' || args.key === 'interests') {
+      setMemoryField('primitives', args.key, args.value);
     } else {
       config.set(args.key, args.value);
     }

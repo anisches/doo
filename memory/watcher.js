@@ -1,4 +1,4 @@
-import { loadMemory, saveMemory } from './index.js';
+import { appendMemoryLastSeen, getMissingPrimitives, incrementPrimitiveAskCount, resetPrimitiveAskCount, loadMemory } from './index.js';
 
 function apiBase(host) {
   const trimmed = host.replace(/\/+$/, '');
@@ -6,7 +6,7 @@ function apiBase(host) {
 }
 
 const PROMPT = (memory, user, agent) => `
-You are a memory distiller. You observe one conversation exchange and decide if anything is worth remembering long-term.
+You are a memory logger.
 
 Current memory:
 ${memory}
@@ -15,21 +15,16 @@ Exchange:
 User: ${user}
 Agent: ${agent}
 
-What to save (only this):
-- User section: facts about the person (name, job, preferences, what they're building)
-- Patterns section: how they communicate or work (prefers brevity, corrects often, technical)
+Your task:
+- write a short last_seen note for this exchange
+- keep it concrete and one line
+- prefer what was discussed, decided, or blocked
+- do not repeat stable primitives
 
-Rules:
-- If something matches/extends an existing entry → update it, don't duplicate
-- If genuinely new about the user or their patterns → add it
-- Otherwise → discard
+Respond with ONLY a JSON object:
+{ "action": "update" | "discard", "entry": "2026-05-02: short note" }
 
-Respond with ONLY a JSON object, nothing else:
-{ "action": "update" | "new" | "discard", "section": "User" | "Patterns", "entry": "one line fact" }
-
-If discarding: { "action": "discard" }
-
-
+If nothing is worth logging, respond with { "action": "discard" }.
 `.trim();
 
 async function distill(user, agent, config) {
@@ -64,19 +59,16 @@ async function distill(user, agent, config) {
 
   if (!result || result.action === 'discard' || !result.entry) return;
 
-  const current = loadMemory();
-  const section = `## ${result.section}`;
-  const entry = `- ${result.entry}`;
-
-  if (current.includes(entry)) return;
-
-  const updated = current.includes(section)
-    ? current.replace(section, `${section}\n${entry}`)
-    : current + `\n${section}\n${entry}\n`;
-
-  saveMemory(updated);
+  await appendMemoryLastSeen(result.entry);
 }
 
 export function watchTurn(userMsg, agentReply, config) {
-  distill(userMsg, agentReply, config).catch(() => { });
+  distill(userMsg, agentReply, config).catch(() => { }).finally(() => {
+    const missing = getMissingPrimitives();
+    if (missing.length > 0) {
+      incrementPrimitiveAskCount();
+    } else {
+      resetPrimitiveAskCount();
+    }
+  });
 }

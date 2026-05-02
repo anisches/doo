@@ -1,34 +1,62 @@
-import { storeGet, storeSet } from '../store.js';
+import {
+  chooseAgentName,
+  getMissingPrimitives,
+  getPrimitiveAskCount,
+  loadMemoryData,
+  resetPrimitiveAskCount,
+  setMemoryField,
+} from '../memory/index.js';
 
-const MAX_ASK_DAYS = 3;
+function renderKnownPrimitiveLabels(data) {
+  const primitives = data?.primitives || {};
+  const labels = [];
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
+  if (primitives.user_name) labels.push(`user_name=${primitives.user_name}`);
+  if (primitives.agent_name) labels.push(`agent_name=${primitives.agent_name}`);
+  if (primitives.interests) labels.push(`interests=${primitives.interests}`);
+
+  return labels;
 }
 
 export async function bootIdentity() {
-  const name = storeGet('identity', 'user_name');
+  const data = loadMemoryData();
+  const missing = getMissingPrimitives(data);
+  const askCount = getPrimitiveAskCount(data);
+  const askLimit = 3;
 
-  if (name) {
-    return { section: 'identity', content: `The user's name is ${name}.` };
+  if (missing.length === 0) {
+    resetPrimitiveAskCount();
+    const labels = renderKnownPrimitiveLabels(data);
+    return {
+      section: 'identity',
+      content: `Primitive memory loaded: ${labels.join('; ')}.`,
+    };
   }
 
-  const askedDates = storeGet('identity', 'name_asked_dates') || [];
+  if (askCount >= askLimit) {
+    const agentName = chooseAgentName(data?.primitives?.agent_name);
+    setMemoryField('primitives', 'agent_name', agentName);
+    resetPrimitiveAskCount();
 
-  if (askedDates.length >= MAX_ASK_DAYS) {
-    return { section: 'identity', content: "You don't need the user's name. Don't ask for it." };
+    return {
+      section: 'identity',
+      content:
+        `Primitive memory is still incomplete, so I named myself ${agentName} and will continue without asking again. If asked my name, I should say I named myself ${agentName}.`,
+    };
   }
 
-  const todayStr = today();
-  if (askedDates.includes(todayStr)) {
-    return { section: 'identity', content: null };
-  }
-
-  storeSet('identity', 'name_asked_dates', [...askedDates, todayStr]);
+  const askFor = missing
+    .map((key) => {
+      if (key === 'user_name') return 'how you would like to be addressed';
+      if (key === 'agent_name') return 'what you want to call me';
+      if (key === 'interests') return 'your primary interests';
+      return key;
+    })
+    .join(', ');
 
   return {
     section: 'identity',
     content:
-      "In your very first reply, ask the user what their name is. Just once — keep it casual, one sentence. If they tell you, immediately call set_config with key=user_name and their name. If they ignore it, change the subject, or avoid it — drop it and never bring it up again this session.",
+      `Before anything else, ask the user for the missing primitive memory fields: ${askFor}. Keep it to one short casual sentence. Do not answer the user's task yet. If the user ignores the question or asks something else, keep the missing primitive memory in view and ask again on the next turn. Keep this reminder active until the missing primitives are actually saved. Once they answer, save the values into memory and continue. After ${askLimit} unanswered asks, stop asking and let me self-name.`,
   };
 }

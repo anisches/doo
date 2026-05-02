@@ -2,7 +2,6 @@ import { runAgent, buildSystemPrompt } from './agent-core.js';
 import { boot } from './boot/index.js';
 import { watchTurn } from './memory/watcher.js';
 import { startScheduler } from './scheduler.js';
-import { beginRemlandTurn, createRemlandSession, reviewRemlandSession } from './remland/index.js';
 
 const REQUEST_TIMEOUT_MS = 45_000;
 
@@ -80,7 +79,6 @@ class TelegramBot {
   constructor(config) {
     this.config = config;
     this.histories = new Map();
-    this.remlandSessions = new Map();
     this.lastChatId = null;
   }
 
@@ -91,14 +89,6 @@ class TelegramBot {
     }
 
     return this.histories.get(chatId);
-  }
-
-  remlandSessionFor(chatId) {
-    if (!this.remlandSessions.has(chatId)) {
-      this.remlandSessions.set(chatId, createRemlandSession('telegram', { chatId }));
-    }
-
-    return this.remlandSessions.get(chatId);
   }
 
   async reply(chatId, text) {
@@ -137,28 +127,12 @@ class TelegramBot {
 
     await this.sendTyping(chatId);
     const history = await this.historyFor(chatId);
-    const remlandSession = this.remlandSessionFor(chatId);
-    this.config.remlandSessionId = remlandSession.id;
-    const turn = beginRemlandTurn(remlandSession.id, { channel: 'telegram', chatId, text: trimmed });
     history.push({ role: 'user', content: trimmed });
 
-    let reply = '';
-    let error = null;
-    try {
-      reply = await runAgent(history, this.config, turn);
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-      throw err;
-    } finally {
-      turn.finish({ reply, error });
-    }
+    const reply = await runAgent(history, this.config);
     history.push({ role: 'assistant', content: reply });
     watchTurn(trimmed, reply, this.config);
     await this.reply(chatId, reply);
-
-    if (/can't|cannot|couldn't|unable|need/i.test(reply || '')) {
-      reviewRemlandSession(remlandSession.id, this.config).catch(() => { });
-    }
   }
 
   async processUpdate(update) {

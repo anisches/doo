@@ -1,12 +1,10 @@
 import { bootRhizome } from './rhizome.js';
 import { bootIdentity } from './identity.js';
-import { bootRemland } from './remland.js';
 import { bootMemory } from './memory.js';
 
 const BRANCHES = [
   () => bootRhizome(),
   () => bootIdentity(),
-  () => bootRemland(),
   () => bootMemory(),
 ];
 
