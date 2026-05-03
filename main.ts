@@ -1,25 +1,28 @@
-import readline from 'node:readline/promises';
 import process from 'node:process';
 
 import { Config } from './config.ts';
-import { buildSystemPrompt, runAgent } from './agent-core.ts';
-import { boot } from './boot/index.ts';
-import { watchTurn } from './memory/watcher.ts';
+import { runTui } from './tui.ts';
 import { runTelegramBot } from './telegram-bot.ts';
-import { startScheduler } from './scheduler.ts';
 
-function printBanner(config) {
+async function runCli() {
+  const config = new Config();
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    await runTui(config);
+    return;
+  }
+
   console.log('');
   console.log('doo');
   console.log(`model: ${config.model}`);
   console.log(`host:  ${config.ollamaHost}`);
   console.log('type exit or quit to leave');
   console.log('');
-}
 
-async function runCli() {
-  const config = new Config();
-  printBanner(config);
+  const readline = await import('node:readline/promises');
+  const { buildSystemPrompt, runAgent } = await import('./agent-core.ts');
+  const { boot } = await import('./boot/index.ts');
+  const { watchTurn } = await import('./memory/watcher.ts');
+  const { startScheduler } = await import('./scheduler.ts');
 
   const bootSections = await boot();
   startScheduler((text) => { console.log('\n[scheduled]\n' + text + '\n---\n'); }, config);
@@ -34,7 +37,7 @@ async function runCli() {
       let userInput;
       try {
         userInput = (await rl.question('You > ')).trim();
-      } catch (error) {
+      } catch {
         console.log('\nbye.');
         break;
       }

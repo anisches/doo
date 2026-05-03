@@ -111,9 +111,15 @@ export async function runAgent(messages, config, hooks = {}) {
   const runtimeConfig = config instanceof Config ? config : config;
 
   for (; ;) {
-    process.stdout.write(`\n[${runtimeConfig.model}] thinking...\r`);
+    hooks.onStatus?.('thinking');
+    if (!hooks.silent) {
+      process.stdout.write(`\n[${runtimeConfig.model}] thinking...\r`);
+    }
     const response = await chat(messages, runtimeConfig);
-    process.stdout.write('\x1b[2K\r');
+    if (!hooks.silent) {
+      process.stdout.write('\x1b[2K\r');
+    }
+    hooks.onStatus?.('thinking');
 
     const msg = response.message || {};
 
@@ -139,14 +145,20 @@ export async function runAgent(messages, config, hooks = {}) {
     for (const { name, args } of toolCalls) {
       hooks.onToolCall?.({ name, args });
 
-      console.log(`  -> ${name}(${JSON.stringify(args)})`);
+      if (!hooks.silent) {
+        console.log(`  -> ${name}(${JSON.stringify(args)})`);
+      }
       const result = await dispatch(name, args, runtimeConfig);
       hooks.onToolResult?.({ name, args, result });
 
       if (name === 'switch_model') {
-        console.log(`  model -> ${runtimeConfig.model}`);
+        if (!hooks.silent) {
+          console.log(`  model -> ${runtimeConfig.model}`);
+        }
       } else if (name === 'set_config') {
-        console.log(`  saved ${args.key}`);
+        if (!hooks.silent) {
+          console.log(`  saved ${args.key}`);
+        }
       }
 
       messages.push({ role: 'tool', tool_name: name, name, content: result });
