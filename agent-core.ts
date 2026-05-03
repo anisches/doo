@@ -129,6 +129,7 @@ export async function runAgent(messages, config, hooks = {}) {
     if (!structuredCalls && textCalls.length === 0) {
       hooks.onAssistantMessage?.(msg.content || '');
       messages.push(messageToHistory(msg));
+      hooks.onStatus?.('ready');
       return msg.content || '';
     }
 
@@ -143,6 +144,7 @@ export async function runAgent(messages, config, hooks = {}) {
       : textCalls;
 
     for (const { name, args } of toolCalls) {
+      hooks.onStatus?.(`tool:${name || 'unknown'}`);
       hooks.onToolCall?.({ name, args });
 
       if (!hooks.silent) {
@@ -164,6 +166,7 @@ export async function runAgent(messages, config, hooks = {}) {
       messages.push({ role: 'tool', tool_name: name, name, content: result });
     }
 
+    hooks.onStatus?.('thinking');
     await sleep(0);
   }
 }

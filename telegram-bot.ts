@@ -1,6 +1,7 @@
 import { runAgent, buildSystemPrompt } from './agent-core.ts';
 import { boot } from './boot/index.ts';
 import { watchTurn } from './memory/watcher.ts';
+import { captureMissingPrimitiveAnswer } from './memory/index.ts';
 import { startScheduler } from './scheduler.ts';
 
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -127,6 +128,7 @@ class TelegramBot {
 
     await this.sendTyping(chatId);
     const history = await this.historyFor(chatId);
+    captureMissingPrimitiveAnswer(trimmed);
     history.push({ role: 'user', content: trimmed });
 
     const reply = await runAgent(history, this.config);

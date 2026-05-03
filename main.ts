@@ -3,6 +3,7 @@ import process from 'node:process';
 import { Config } from './config.ts';
 import { runTui } from './tui.ts';
 import { runTelegramBot } from './telegram-bot.ts';
+import { captureMissingPrimitiveAnswer } from './memory/index.ts';
 
 async function runCli() {
   const config = new Config();
@@ -51,6 +52,7 @@ async function runCli() {
         break;
       }
 
+      captureMissingPrimitiveAnswer(userInput);
       history.push({ role: 'user', content: userInput });
       const reply = await runAgent(history, config);
       history.push({ role: 'assistant', content: reply });

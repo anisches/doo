@@ -42,6 +42,38 @@ function splitKeyValue(line) {
   return [key, value];
 }
 
+function looksLikePrimitiveName(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  if (value.length > 60) return false;
+  if (/[0-9@/:?#<>{}\[\]\\]/.test(value)) return false;
+  if (/\n|\r/.test(value)) return false;
+
+  const tokens = value.split(/\s+/);
+  if (tokens.length > 3) return false;
+  if (tokens.some((token) => token.length < 2)) return false;
+
+  const validToken = /^[\p{L}][\p{L}.'-]*$/u;
+  if (!tokens.every((token) => validToken.test(token))) {
+    return false;
+  }
+
+  const blocked = new Set(['hi', 'hello', 'hey', 'yes', 'no', 'ok', 'okay', 'thanks', 'thank', 'name', 'my', 'i', "i'm", 'im', 'call', 'me']);
+  if (tokens.some((token) => blocked.has(token.toLowerCase()))) {
+    return false;
+  }
+
+  return true;
+}
+
+function looksLikeInterests(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  if (value.length > 120) return false;
+  if (/\n|\r/.test(value)) return false;
+  return /,|\/|\band\b/i.test(value) || value.split(/\s+/).length >= 3;
+}
+
 function parseRawMemory(raw) {
   const data = EMPTY_DATA();
   let section = null;
@@ -236,4 +268,34 @@ export function setMemoryField(section, key, value) {
 
 export function appendMemoryLastSeen(note) {
   return setMemoryField('last_seen', null, note);
+}
+
+export function captureMissingPrimitiveAnswer(text) {
+  const data = loadMemoryData();
+  const missing = getMissingPrimitives(data);
+  const value = String(text || '').trim();
+
+  if (!value || missing.length === 0) {
+    return { saved: false, key: null, value: null };
+  }
+
+  if (missing.includes('user_name') && looksLikePrimitiveName(value)) {
+    data.primitives.user_name = value;
+    saveMemoryData(data);
+    return { saved: true, key: 'user_name', value };
+  }
+
+  if (missing.includes('agent_name') && looksLikePrimitiveName(value)) {
+    data.primitives.agent_name = value;
+    saveMemoryData(data);
+    return { saved: true, key: 'agent_name', value };
+  }
+
+  if (missing.includes('interests') && looksLikeInterests(value)) {
+    data.primitives.interests = value;
+    saveMemoryData(data);
+    return { saved: true, key: 'interests', value };
+  }
+
+  return { saved: false, key: null, value: null };
 }
