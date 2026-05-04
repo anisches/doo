@@ -7,6 +7,8 @@ import {
   captureMissingPrimitiveAnswer,
   getMissingPrimitives,
   loadMemoryData,
+  nextPrimitiveReminder,
+  resetPrimitiveReminder,
 } from './memory/index.ts';
 import { watchTurn } from './memory/watcher.ts';
 import { startScheduler } from './scheduler.ts';
@@ -28,6 +30,7 @@ type TuiState = {
 };
 
 type TuiConfig = {
+  provider: string;
   model: string;
   ollamaHost: string;
   ollamaApiKey?: string | null;
@@ -235,15 +238,14 @@ function memorySnapshotLines(config: TuiConfig, width: number) {
   const missing = getMissingPrimitives(memory);
   const agentName = primitives.agent_name || 'agent';
   const pending = missing.length ? `pending: ${missing.join(', ')}` : 'pending: none';
-  const turns = Number.parseInt(context.primitive_ask_count, 10) || 0;
 
   return [
     sectionTitle('Session'),
+    `  - provider: ${config.provider}`,
     `  - model: ${config.model}`,
     `  - host: ${config.ollamaHost}`,
     `  - agent: ${agentName}`,
     `  - ${pending}`,
-    `  - ask count: ${turns}`,
     '',
     ...renderKeyValueSection(
       'Primitives',
@@ -344,6 +346,7 @@ export async function runTui(config: TuiConfig) {
   const input = { value: '' };
   const userHistory: string[] = [];
   const conversation = [{ role: 'system', content: systemPrompt }];
+  const sessionKey = 'tui';
   let historyIndex = -1;
 
   const pushLog = (kind: LogKind, text: string) => {
@@ -398,7 +401,7 @@ export async function runTui(config: TuiConfig) {
     process.stdout.write('\x1b[2J\x1b[H');
     process.stdout.write(`${bold('doo')} ${dim('workspace terminal')}\n`);
     process.stdout.write(
-      `${dim('model')}: ${config.model} ${dim('|')} ${dim('host')}: ${config.ollamaHost} ${dim('|')} ${dim('agent')}: ${agentTitle}\n`,
+      `${dim('provider')}: ${config.provider} ${dim('|')} ${dim('model')}: ${config.model} ${dim('|')} ${dim('host')}: ${config.ollamaHost} ${dim('|')} ${dim('agent')}: ${agentTitle}\n`,
     );
     process.stdout.write(`${dim(statusLine)}\n`);
     process.stdout.write(`${'-'.repeat(Math.min(width, 120))}\n`);
@@ -429,6 +432,10 @@ export async function runTui(config: TuiConfig) {
     }
   };
 
+  const requestExit = () => {
+    state.exit = true;
+  };
+
   const showMemorySnapshot = () => {
     const memory = loadMemoryData();
     const missing = getMissingPrimitives(memory);
@@ -452,6 +459,7 @@ export async function runTui(config: TuiConfig) {
     clearLogs();
     state.turnCount = 0;
     state.status = 'reset';
+    resetPrimitiveReminder(sessionKey);
     pushLog('system', 'session reset; system prompt kept, turn history cleared');
   };
 
@@ -517,7 +525,12 @@ export async function runTui(config: TuiConfig) {
 
     captureMissingPrimitiveAnswer(text);
     userHistory.push(text);
-    conversation.push({ role: 'user', content: text });
+    const messages = [...conversation];
+    const reminder = nextPrimitiveReminder(sessionKey);
+    if (reminder) {
+      messages.push({ role: 'system', content: reminder });
+    }
+    messages.push({ role: 'user', content: text });
 
     const hooks = {
       silent: true,
@@ -543,7 +556,9 @@ export async function runTui(config: TuiConfig) {
     };
 
     try {
-      const reply = await runAgent(conversation, config, hooks);
+      const reply = await runAgent(messages, config, hooks);
+      conversation.push({ role: 'user', content: text });
+      conversation.push({ role: 'assistant', content: reply });
       watchTurn(text, reply, config);
       state.status = 'ready';
     } catch (error) {
@@ -592,7 +607,11 @@ export async function runTui(config: TuiConfig) {
 
   const onKeypress = async (_str: string, key: readline.Key) => {
     if (key.ctrl && key.name === 'c') {
-      state.exit = true;
+      requestExit();
+      return;
+    }
+    if (key.sequence === '\u0003') {
+      requestExit();
       return;
     }
     if (key.ctrl && key.name === 'l') {
@@ -647,6 +666,8 @@ export async function runTui(config: TuiConfig) {
 
   startRawMode();
   process.stdin.on('keypress', onKeypress);
+  process.once('SIGINT', requestExit);
+  process.once('SIGTERM', requestExit);
   pushLog('system', 'workspace ready');
   render();
 
@@ -656,6 +677,8 @@ export async function runTui(config: TuiConfig) {
     }
   } finally {
     process.stdin.off('keypress', onKeypress);
+    process.off('SIGINT', requestExit);
+    process.off('SIGTERM', requestExit);
     stopRawMode();
     process.stdout.write('\x1b[?25h');
     process.stdout.write('\x1b[2J\x1b[H');

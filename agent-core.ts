@@ -1,9 +1,16 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Config } from './config.ts';
 import { TOOLS, dispatch } from './tools/registry.ts';
+import { providerDisplayName, sendChat } from './providers.ts';
 
 export const SYSTEM_PROMPT = `
 You are a helpful and friendly AI agent. Be conversational, clear, and a little fun. No need to be stiff.
+
+You have two model providers:
+- Ollama for local models.
+- NVDA / NVIDIA for hosted models.
+
+Switching the model only changes the model within the current provider. If the user asks to use NVDA or NVIDIA, switch the provider. If they ask for Ollama or local, switch back to Ollama.
 
 If web_search returns a message starting with MISSING_OLLAMA_API_KEY:
   1. Tell the user you need an Ollama API key to search the web.
@@ -21,43 +28,6 @@ Be curious ,  answer in a friendly manner , bee keen on doing things !!
 export function buildSystemPrompt(bootSections = []) {
   const sections = bootSections.map((b) => b.content).join('\n\n');
   return sections ? `${SYSTEM_PROMPT}\n\n${sections}` : SYSTEM_PROMPT;
-}
-
-function apiBase(host) {
-  const trimmed = host.replace(/\/+$/, '');
-  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
-}
-
-function makeHeaders(config) {
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-
-  if (config.ollamaApiKey) {
-    headers.Authorization = `Bearer ${config.ollamaApiKey}`;
-  }
-
-  return headers;
-}
-
-async function chat(messages, config) {
-  const response = await fetch(`${apiBase(config.ollamaHost)}/chat`, {
-    method: 'POST',
-    headers: makeHeaders(config),
-    body: JSON.stringify({
-      model: config.model,
-      messages,
-      tools: TOOLS,
-      stream: false,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Ollama chat failed (${response.status}): ${text}`);
-  }
-
-  return response.json();
 }
 
 function parseTextToolCalls(content) {
@@ -113,9 +83,9 @@ export async function runAgent(messages, config, hooks = {}) {
   for (; ;) {
     hooks.onStatus?.('thinking');
     if (!hooks.silent) {
-      process.stdout.write(`\n[${runtimeConfig.model}] thinking...\r`);
+      process.stdout.write(`\n[${providerDisplayName(runtimeConfig.provider)}:${runtimeConfig.model}] thinking...\r`);
     }
-    const response = await chat(messages, runtimeConfig);
+    const response = await sendChat(messages, runtimeConfig, { tools: TOOLS });
     if (!hooks.silent) {
       process.stdout.write('\x1b[2K\r');
     }

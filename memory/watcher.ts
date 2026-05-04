@@ -1,9 +1,5 @@
-import { appendMemoryLastSeen, getMissingPrimitives, incrementPrimitiveAskCount, resetPrimitiveAskCount, loadMemory } from './index.ts';
-
-function apiBase(host) {
-  const trimmed = host.replace(/\/+$/, '');
-  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
-}
+import { appendMemoryLastSeen, loadMemory } from './index.ts';
+import { sendChat } from '../providers.ts';
 
 const PROMPT = (memory, user, agent) => `
 You are a memory logger.
@@ -29,25 +25,17 @@ If nothing is worth logging, respond with { "action": "discard" }.
 
 async function distill(user, agent, config) {
   const memory = loadMemory();
-  const body = {
-    model: config.model,
-    messages: [{ role: 'user', content: PROMPT(memory, user, agent) }],
-    stream: false,
-  };
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (config.ollamaApiKey) headers.Authorization = `Bearer ${config.ollamaApiKey}`;
-
-  const res = await fetch(`${apiBase(config.ollamaHost)}/chat`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) return;
-
-  const data = await res.json();
-  const text = (data.message?.content || '').trim();
+  let text = '';
+  try {
+    const message = await sendChat(
+      [{ role: 'user', content: PROMPT(memory, user, agent) }],
+      config,
+      { tools: [] },
+    );
+    text = String(message?.content || '').trim();
+  } catch {
+    return;
+  }
 
   let result;
   try {
@@ -63,12 +51,5 @@ async function distill(user, agent, config) {
 }
 
 export function watchTurn(userMsg, agentReply, config) {
-  distill(userMsg, agentReply, config).catch(() => { }).finally(() => {
-    const missing = getMissingPrimitives();
-    if (missing.length > 0) {
-      incrementPrimitiveAskCount();
-    } else {
-      resetPrimitiveAskCount();
-    }
-  });
+  distill(userMsg, agentReply, config).catch(() => { });
 }

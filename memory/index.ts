@@ -6,22 +6,14 @@ const MEMORY_PATH = path.join(os.homedir(), '.doo', 'memory.md');
 
 const SECTION_ORDER = ['primitives', 'preferences', 'context', 'last_seen'];
 
+const primitiveReminderCounts = new Map();
+
 const EMPTY_DATA = () => ({
   primitives: {},
   preferences: {},
   context: {},
   last_seen: [],
 });
-
-const DEFAULT_AGENT_NAMES = [
-  'Crumb',
-  'Echo',
-  'Mote',
-  'Spark',
-  'Nib',
-  'Twig',
-  'Rune',
-];
 
 function normalizeSection(name) {
   const value = String(name || '').trim().toLowerCase();
@@ -74,6 +66,73 @@ function looksLikeInterests(text) {
   return /,|\/|\band\b/i.test(value) || value.split(/\s+/).length >= 3;
 }
 
+function ordinal(n) {
+  const value = Math.max(1, Number.parseInt(n, 10) || 1);
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${value}th`;
+  }
+
+  switch (value % 10) {
+    case 1:
+      return `${value}st`;
+    case 2:
+      return `${value}nd`;
+    case 3:
+      return `${value}rd`;
+    default:
+      return `${value}th`;
+  }
+}
+
+function missingPrimitiveLabel(key) {
+  if (key === 'user_name') return 'how you would like to be addressed';
+  if (key === 'agent_name') return 'what you want to call me';
+  if (key === 'interests') return 'your primary interests';
+  return key;
+}
+
+function primitiveReminderText(missing, count) {
+  const fields = missing.map(missingPrimitiveLabel).join(', ');
+  const lead =
+    count <= 1
+      ? 'Before anything else'
+      : `This is the ${ordinal(count)} time we are asking in this session. Keep it calm, persuasive, and non-frustrating.`;
+
+  return [
+    lead,
+    `Ask the user for the missing primitive memory fields: ${fields}.`,
+    'Keep it to one short casual sentence.',
+    'Do not answer the user\'s task yet.',
+    'This is cached session memory only, so do not save the ask count.',
+    'Once they answer, save the values into memory and continue.',
+  ].join(' ');
+}
+
+export function getPrimitiveReminder(sessionKey = 'default') {
+  const key = String(sessionKey || 'default');
+  return primitiveReminderCounts.get(key) || 0;
+}
+
+export function resetPrimitiveReminder(sessionKey = 'default') {
+  const key = String(sessionKey || 'default');
+  primitiveReminderCounts.delete(key);
+  return 0;
+}
+
+export function nextPrimitiveReminder(sessionKey = 'default', data = loadMemoryData()) {
+  const missing = getMissingPrimitives(data);
+  if (missing.length === 0) {
+    resetPrimitiveReminder(sessionKey);
+    return null;
+  }
+
+  const key = String(sessionKey || 'default');
+  const next = getPrimitiveReminder(key) + 1;
+  primitiveReminderCounts.set(key, next);
+  return primitiveReminderText(missing, next);
+}
+
 function parseRawMemory(raw) {
   const data = EMPTY_DATA();
   let section = null;
@@ -117,11 +176,6 @@ function parseRawMemory(raw) {
     if (!value && !item.includes(':')) {
       counters[section] += 1;
       data[section][`note_${counters[section]}`] = key;
-      continue;
-    }
-
-    if (section === 'context' && key === 'primitive_ask_count') {
-      data.context.primitive_ask_count = Number.parseInt(value, 10) || 0;
       continue;
     }
 
@@ -214,35 +268,6 @@ export function saveMemoryData(data) {
 export function getMissingPrimitives(data = loadMemoryData()) {
   const required = ['user_name', 'agent_name', 'interests'];
   return required.filter((key) => !String(data?.primitives?.[key] || '').trim());
-}
-
-export function getPrimitiveAskCount(data = loadMemoryData()) {
-  return Number.parseInt(data?.context?.primitive_ask_count, 10) || 0;
-}
-
-export function incrementPrimitiveAskCount() {
-  const data = loadMemoryData();
-  const next = getPrimitiveAskCount(data) + 1;
-  data.context.primitive_ask_count = next;
-  saveMemoryData(data);
-  return next;
-}
-
-export function resetPrimitiveAskCount() {
-  const data = loadMemoryData();
-  data.context.primitive_ask_count = 0;
-  saveMemoryData(data);
-  return 0;
-}
-
-export function chooseAgentName(existing = '') {
-  const current = String(existing || '').trim();
-  if (current) {
-    return current;
-  }
-
-  const idx = Math.floor(Math.random() * DEFAULT_AGENT_NAMES.length);
-  return DEFAULT_AGENT_NAMES[idx];
 }
 
 export function setMemoryField(section, key, value) {

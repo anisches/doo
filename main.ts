@@ -3,7 +3,7 @@ import process from 'node:process';
 import { Config } from './config.ts';
 import { runTui } from './tui.ts';
 import { runTelegramBot } from './telegram-bot.ts';
-import { captureMissingPrimitiveAnswer } from './memory/index.ts';
+import { captureMissingPrimitiveAnswer, nextPrimitiveReminder } from './memory/index.ts';
 
 async function runCli() {
   const config = new Config();
@@ -14,6 +14,7 @@ async function runCli() {
 
   console.log('');
   console.log('doo');
+  console.log(`provider: ${config.provider}`);
   console.log(`model: ${config.model}`);
   console.log(`host:  ${config.ollamaHost}`);
   console.log('type exit or quit to leave');
@@ -28,6 +29,7 @@ async function runCli() {
   const bootSections = await boot();
   startScheduler((text) => { console.log('\n[scheduled]\n' + text + '\n---\n'); }, config);
   const history = [{ role: 'system', content: buildSystemPrompt(bootSections) }];
+  const sessionKey = 'cli';
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -53,8 +55,14 @@ async function runCli() {
       }
 
       captureMissingPrimitiveAnswer(userInput);
+      const messages = [...history];
+      const reminder = nextPrimitiveReminder(sessionKey);
+      if (reminder) {
+        messages.push({ role: 'system', content: reminder });
+      }
+      messages.push({ role: 'user', content: userInput });
+      const reply = await runAgent(messages, config);
       history.push({ role: 'user', content: userInput });
-      const reply = await runAgent(history, config);
       history.push({ role: 'assistant', content: reply });
       watchTurn(userInput, reply, config);
 

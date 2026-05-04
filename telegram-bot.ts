@@ -1,7 +1,7 @@
 import { runAgent, buildSystemPrompt } from './agent-core.ts';
 import { boot } from './boot/index.ts';
 import { watchTurn } from './memory/watcher.ts';
-import { captureMissingPrimitiveAnswer } from './memory/index.ts';
+import { captureMissingPrimitiveAnswer, nextPrimitiveReminder, resetPrimitiveReminder } from './memory/index.ts';
 import { startScheduler } from './scheduler.ts';
 
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -117,6 +117,7 @@ class TelegramBot {
   async reset(chatId) {
     const bootSections = await boot();
     this.histories.set(chatId, [{ role: 'system', content: buildSystemPrompt(bootSections) }]);
+    resetPrimitiveReminder(String(chatId));
     await this.reply(chatId, 'Conversation reset.');
   }
 
@@ -129,9 +130,15 @@ class TelegramBot {
     await this.sendTyping(chatId);
     const history = await this.historyFor(chatId);
     captureMissingPrimitiveAnswer(trimmed);
-    history.push({ role: 'user', content: trimmed });
+    const messages = [...history];
+    const reminder = nextPrimitiveReminder(String(chatId));
+    if (reminder) {
+      messages.push({ role: 'system', content: reminder });
+    }
+    messages.push({ role: 'user', content: trimmed });
 
-    const reply = await runAgent(history, this.config);
+    const reply = await runAgent(messages, this.config);
+    history.push({ role: 'user', content: trimmed });
     history.push({ role: 'assistant', content: reply });
     watchTurn(trimmed, reply, this.config);
     await this.reply(chatId, reply);
