@@ -12,6 +12,7 @@ import {
 } from './memory/index.ts';
 import { watchTurn } from './memory/watcher.ts';
 import { startScheduler } from './scheduler.ts';
+import { describeProviders, providerDisplayName } from './providers.ts';
 
 type LogKind = 'system' | 'user' | 'assistant' | 'tool' | 'status' | 'scheduled' | 'command';
 
@@ -289,17 +290,17 @@ function renderTranscriptLines(logs: LogEntry[], width: number, agentName: strin
     const label = kindLabel(entry.kind, agentName);
     const frame = kindFrame(entry.kind);
     const time = dim(formatTime(entry.at));
-    const header = `${frame} ${label} ${time}`;
-    const bodyWidth = Math.max(18, width - 4);
-    lines.push(header);
+    const bubblePad = Math.max(18, width - 6);
+    const bodyWidth = Math.max(18, width - 8);
+    lines.push(`${frame} ${label} ${time}`);
     for (const paragraph of String(entry.text || '').split('\n')) {
       const wrapped = wrapText(paragraph, bodyWidth);
       if (wrapped.length === 0) {
-        lines.push('  ');
+        lines.push(`${frame}  `);
         continue;
       }
       for (const line of wrapped) {
-        lines.push(`  ${line}`);
+        lines.push(`${frame} ${line.padEnd(bubblePad - 2, ' ')}`);
       }
     }
     lines.push('');
@@ -321,6 +322,7 @@ function availableCommands() {
     '/clear  clear the transcript',
     '/reset  clear session state',
     '/memory show the current memory snapshot',
+    '/providers show provider catalog',
     '/exit   quit the app',
   ];
 }
@@ -363,15 +365,14 @@ export async function runTui(config: TuiConfig) {
   const render = () => {
     const width = termWidth();
     const height = termHeight();
-    const leftWidth = Math.max(42, Math.floor(width * 0.66));
-    const rightWidth = Math.max(22, width - leftWidth - 3);
-    const headerLines = 5;
+    const headerLines = 4;
     const footerLines = 3;
     const usableLines = Math.max(8, height - headerLines - footerLines);
     const memory = loadMemoryData();
     const primitives = memory.primitives || {};
     const agentName = primitives.agent_name || 'agent';
     const agentTitle = agentName === 'agent' ? 'doo' : agentName;
+    const providerTitle = providerDisplayName(config.provider);
     const pending = getMissingPrimitives(memory);
     const statusLine = [
       `state: ${state.status}`,
@@ -380,40 +381,25 @@ export async function runTui(config: TuiConfig) {
       pending.length ? `missing: ${pending.join(', ')}` : 'missing: none',
     ].join(' | ');
 
-    const transcript = renderTranscriptLines(logs, leftWidth, agentTitle);
+    const transcript = renderTranscriptLines(logs, width, agentTitle);
     const left = truncateLines(transcript, usableLines);
-
-    const sidebar: string[] = [
-      sectionTitle('Workspace'),
-      `  - model: ${config.model}`,
-      `  - agent: ${agentTitle}`,
-      `  - host: ${config.ollamaHost}`,
-      `  - busy: ${state.busy ? 'yes' : 'no'}`,
-      `  - status: ${state.status}`,
-      '',
-      ...memorySnapshotLines(config, rightWidth),
-      ...renderListSection('Recent tools', recentToolTrail(logs), rightWidth),
-      ...renderListSection('Commands', availableCommands(), rightWidth),
-    ];
-    const right = truncateLines(sidebar, usableLines);
-    const rows = Math.max(left.length, right.length);
 
     process.stdout.write('\x1b[2J\x1b[H');
     process.stdout.write(`${bold('doo')} ${dim('workspace terminal')}\n`);
     process.stdout.write(
-      `${dim('provider')}: ${config.provider} ${dim('|')} ${dim('model')}: ${config.model} ${dim('|')} ${dim('host')}: ${config.ollamaHost} ${dim('|')} ${dim('agent')}: ${agentTitle}\n`,
+      `${dim('provider')}: ${providerTitle} ${dim('|')} ${dim('model')}: ${config.model} ${dim('|')} ${dim('agent')}: ${agentTitle} ${dim('|')} ${dim(state.status)}\n`,
     );
     process.stdout.write(`${dim(statusLine)}\n`);
     process.stdout.write(`${'-'.repeat(Math.min(width, 120))}\n`);
 
-    for (let i = 0; i < rows; i += 1) {
-      const leftLine = left[i] || '';
-      const rightLine = right[i] || '';
-      process.stdout.write(`${padLine(leftLine, leftWidth)} | ${padLine(rightLine, rightWidth)}\n`);
+    for (let i = 0; i < left.length; i += 1) {
+      process.stdout.write(`${left[i]}\n`);
     }
 
     process.stdout.write(`${'-'.repeat(Math.min(width, 120))}\n`);
-    const promptHint = state.busy ? dim('assistant is working') : dim('enter to send, /help for commands');
+    const promptHint = state.busy
+      ? dim('assistant is working')
+      : dim('enter to send, /help, /providers, /memory');
     const prompt = `${cyan('you')} > ${input.value || dim('type a message')}`;
     process.stdout.write(`${prompt}\n`);
     process.stdout.write(`${promptHint}\n`);
@@ -452,6 +438,10 @@ export async function runTui(config: TuiConfig) {
     );
   };
 
+  const showProviders = () => {
+    pushLog('system', describeProviders(config));
+  };
+
   const resetSession = () => {
     conversation.splice(1);
     userHistory.splice(0);
@@ -482,6 +472,9 @@ export async function runTui(config: TuiConfig) {
         return true;
       case 'memory':
         showMemorySnapshot();
+        return true;
+      case 'providers':
+        showProviders();
         return true;
       case 'exit':
       case 'quit':

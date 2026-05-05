@@ -5,7 +5,7 @@ import { runCommand } from './shell.ts';
 import { addSchedule, removeSchedule, listSchedules } from './cron.ts';
 import { renderRhizome, learnSkill } from '../rhizome/index.ts';
 import { setMemoryField } from '../memory/index.ts';
-import { normalizeProviderName } from '../providers.ts';
+import { describeProviders, normalizeProviderName } from '../providers.ts';
 
 export const TOOLS = [
   {
@@ -75,13 +75,13 @@ export const TOOLS = [
     function: {
       name: 'switch_provider',
       description:
-        'Switch the active model provider. Use this when the user asks for NVDA/NVIDIA or Ollama/local. This does not change the model unless you pass one explicitly.',
+        'Switch the active model provider. Use this when the user asks for OpenRouter, NVDA/NVIDIA, or Ollama/local. This does not change the model unless you pass one explicitly.',
       parameters: {
         type: 'object',
         properties: {
           provider: {
             type: 'string',
-            enum: ['ollama', 'nvidia', 'nvda'],
+            enum: ['openrouter', 'ollama', 'nvidia', 'nvda'],
             description: 'The provider to use',
           },
           model: {
@@ -90,6 +90,18 @@ export const TOOLS = [
           },
         },
         required: ['provider'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_providers',
+      description: 'Get the current provider and the full provider catalog, including which API keys are available.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
       },
     },
   },
@@ -207,13 +219,13 @@ export const TOOLS = [
     function: {
       name: 'set_config',
       description:
-        'Save a configuration value or primitive memory field. Use this when the user wants to set an API key, change the Ollama host URL, switch providers, or store a required memory primitive. Known keys: provider, model, ollama_api_key, ollama_host, nvidia_api_key, nvidia_base_url, user_name, agent_name, interests.',
+        'Save a configuration value or primitive memory field. Use this when the user wants to set an API key, change the Ollama host URL, switch providers, or store a required memory primitive. Known keys: provider, model, ollama_api_key, ollama_host, openrouter_api_key, openrouter_base_url, nvidia_api_key, nvidia_base_url, user_name, agent_name, interests.',
       parameters: {
         type: 'object',
         properties: {
           key: {
             type: 'string',
-            description: 'Config key, e.g. provider, model, ollama_api_key, or nvidia_api_key',
+            description: 'Config key, e.g. provider, model, ollama_api_key, openrouter_api_key, or nvidia_api_key',
           },
           value: {
             type: 'string',
@@ -250,7 +262,17 @@ export async function dispatch(name, args, config) {
     if (args.model) {
       config.model = args.model;
     }
-    return `Provider switched to ${provider === 'nvidia' ? 'NVDA' : 'Ollama'}${args.model ? ` with model ${args.model}` : ''}.`;
+    const label =
+      provider === 'openrouter'
+        ? 'OpenRouter'
+        : provider === 'nvidia'
+          ? 'NVDA'
+          : 'Ollama';
+    return `Provider switched to ${label}${args.model ? ` with model ${args.model}` : ''}.`;
+  }
+
+  if (name === 'query_providers') {
+    return describeProviders(config);
   }
 
   if (name === 'read_file') {

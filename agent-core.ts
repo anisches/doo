@@ -6,11 +6,14 @@ import { providerDisplayName, sendChat } from './providers.ts';
 export const SYSTEM_PROMPT = `
 You are a helpful and friendly AI agent. Be conversational, clear, and a little fun. No need to be stiff.
 
-You have two model providers:
+You have three model providers:
+- OpenRouter for hosted models. This is the default provider.
 - Ollama for local models.
 - NVDA / NVIDIA for hosted models.
 
-Switching the model only changes the model within the current provider. If the user asks to use NVDA or NVIDIA, switch the provider. If they ask for Ollama or local, switch back to Ollama.
+Switching the model only changes the model within the current provider. If the user asks to use OpenRouter, switch_provider to openrouter. If they ask to use NVDA or NVIDIA, switch the provider to nvidia. If they ask for Ollama or local, switch back to Ollama.
+
+Use query_providers when you need to inspect the active provider or the supported provider list.
 
 If web_search returns a message starting with MISSING_OLLAMA_API_KEY:
   1. Tell the user you need an Ollama API key to search the web.
@@ -79,6 +82,8 @@ function messageToHistory(message) {
 
 export async function runAgent(messages, config, hooks = {}) {
   const runtimeConfig = config instanceof Config ? config : config;
+  let emptyRetries = 0;
+  let fallbackRetries = 0;
 
   for (; ;) {
     hooks.onStatus?.('thinking');
@@ -95,12 +100,45 @@ export async function runAgent(messages, config, hooks = {}) {
 
     const structuredCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
     const textCalls = !structuredCalls ? parseTextToolCalls(msg.content || '') : [];
+    const assistantText = String(msg.content || '').trim();
 
     if (!structuredCalls && textCalls.length === 0) {
+      if (!assistantText && emptyRetries < 1) {
+        emptyRetries += 1;
+        messages.push({
+          role: 'system',
+          content:
+            'The previous assistant response was empty. Answer the user directly in one short, complete reply. Do not use tools for this retry.',
+        });
+        hooks.onStatus?.('retrying');
+        continue;
+      }
+
+      if (!assistantText && fallbackRetries < 1) {
+        fallbackRetries += 1;
+        const fallbackMessages = [
+          ...messages,
+          {
+            role: 'system',
+            content:
+              'The assistant response was empty. Answer the user directly in one short complete sentence. Do not use tools.',
+          },
+        ];
+        const fallbackResponse = await sendChat(fallbackMessages, runtimeConfig, { tools: [] });
+        const fallbackMsg = fallbackResponse || {};
+        const fallbackText = String(fallbackMsg.content || '').trim();
+        if (fallbackText) {
+          hooks.onAssistantMessage?.(fallbackText);
+          messages.push(messageToHistory(fallbackMsg));
+          hooks.onStatus?.('ready');
+          return fallbackText;
+        }
+      }
+
       hooks.onAssistantMessage?.(msg.content || '');
       messages.push(messageToHistory(msg));
       hooks.onStatus?.('ready');
-      return msg.content || '';
+      return assistantText;
     }
 
     if (textCalls.length > 0) {

@@ -6,11 +6,14 @@ const CONFIG_DIR = path.join(os.homedir(), '.doo');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 const DEFAULTS = {
-  provider: 'ollama',
-  model: 'qwen-a3b-32k:latest',
+  provider: 'openrouter',
+  model: 'nvidia/nemotron-3-super-120b-a12b:free',
   ollama_model: 'qwen-a3b-32k:latest',
   ollama_host: 'http://localhost:11434',
   ollama_api_key: null,
+  openrouter_model: 'nvidia/nemotron-3-super-120b-a12b:free',
+  openrouter_base_url: 'https://openrouter.ai/api/v1',
+  openrouter_api_key: null,
   nvidia_model: 'mistralai/mistral-nemotron',
   nvidia_base_url: 'https://integrate.api.nvidia.com/v1',
   nvidia_api_key: null,
@@ -41,6 +44,10 @@ export class Config {
   }
 
   get model() {
+    if (this.provider === 'openrouter') {
+      return this.data.openrouter_model || DEFAULTS.openrouter_model;
+    }
+
     if (this.provider === 'nvidia') {
       return this.data.nvidia_model || DEFAULTS.nvidia_model;
     }
@@ -49,7 +56,9 @@ export class Config {
   }
 
   set model(value) {
-    if (this.provider === 'nvidia') {
+    if (this.provider === 'openrouter') {
+      this.data.openrouter_model = value;
+    } else if (this.provider === 'nvidia') {
       this.data.nvidia_model = value;
     } else {
       this.data.ollama_model = value;
@@ -73,6 +82,14 @@ export class Config {
 
   get ollamaApiKey() {
     return this.data.ollama_api_key || null;
+  }
+
+  get openrouterBaseUrl() {
+    return process.env.OPENROUTER_BASE_URL || this.data.openrouter_base_url || 'https://openrouter.ai/api/v1';
+  }
+
+  get openrouterApiKey() {
+    return process.env.OPENROUTER_API_KEY || this.data.openrouter_api_key || null;
   }
 
   get nvidiaBaseUrl() {
