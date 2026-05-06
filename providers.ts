@@ -10,6 +10,15 @@ const PROVIDERS = {
     endpoint: '/chat',
     defaultModel: 'qwen-a3b-32k:latest',
   },
+  unsloth: {
+    key: 'unsloth',
+    label: 'Unsloth',
+    envKey: 'UNSLOTH_API_KEY',
+    baseUrl: (config) => config.unslothBaseUrl,
+    apiKey: (config) => config.unslothApiKey,
+    endpoint: '/chat/completions',
+    defaultModel: 'default',
+  },
   nvidia: {
     key: 'nvidia',
     label: 'NVDA',
@@ -33,6 +42,7 @@ const PROVIDERS = {
 function normalizeProvider(value) {
   const v = String(value || '').trim().toLowerCase();
   if (v === 'nvda' || v === 'nvidia') return 'nvidia';
+  if (v === 'unsloth' || v === 'uns' || v === 'grizzly') return 'unsloth';
   if (v === 'openrouter' || v === 'router' || v === 'open' || v === 'or') return 'openrouter';
   if (v === 'ollama' || v === 'local' || v === '') return 'ollama';
   return 'ollama';
@@ -51,7 +61,19 @@ function providerUrl(config, provider = config.provider) {
   const spec = providerSpec(normalized);
   const base = trimTrailingSlash(spec.baseUrl(config));
   if (normalized === 'ollama') {
+    if (base.endsWith('/api/chat')) {
+      return base;
+    }
     return base.endsWith('/api') ? `${base}/chat` : `${base}/api/chat`;
+  }
+  if (base.endsWith('/chat/completions')) {
+    return base;
+  }
+  if (base.endsWith('/v1/chat/completions')) {
+    return base;
+  }
+  if (base.endsWith('/chat') || base.endsWith('/v1/chat')) {
+    return `${base.replace(/\/(?:v1\/)?chat$/, '')}/v1/chat/completions`;
   }
   return base.endsWith('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
 }
@@ -98,6 +120,9 @@ function currentModel(config, provider) {
   const normalized = normalizeProvider(provider);
   if (normalized === 'openrouter') {
     return config.openrouter_model || PROVIDERS.openrouter.defaultModel;
+  }
+  if (normalized === 'unsloth') {
+    return config.unsloth_model || PROVIDERS.unsloth.defaultModel;
   }
   if (normalized === 'nvidia') {
     return config.nvidia_model || PROVIDERS.nvidia.defaultModel;

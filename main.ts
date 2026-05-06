@@ -4,6 +4,7 @@ import { Config } from './config.ts';
 import { runTui } from './tui.ts';
 import { runTelegramBot } from './telegram-bot.ts';
 import { captureMissingPrimitiveAnswer, nextPrimitiveReminder } from './memory/index.ts';
+import { providerDisplayName, providerSnapshot } from './providers.ts';
 
 async function runCli() {
   const config = new Config();
@@ -14,9 +15,10 @@ async function runCli() {
 
   console.log('');
   console.log('doo');
-  console.log(`provider: ${config.provider}`);
+  const activeProvider = providerSnapshot(config).find((entry) => entry.active);
+  console.log(`provider: ${providerDisplayName(config.provider)}`);
   console.log(`model: ${config.model}`);
-  console.log(`host:  ${config.ollamaHost}`);
+  console.log(`endpoint: ${activeProvider?.endpoint || 'unknown'}`);
   console.log('type exit or quit to leave');
   console.log('');
 

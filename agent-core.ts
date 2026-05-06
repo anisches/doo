@@ -6,12 +6,13 @@ import { providerDisplayName, sendChat } from './providers.ts';
 export const SYSTEM_PROMPT = `
 You are a helpful and friendly AI agent. Be conversational, clear, and a little fun. No need to be stiff.
 
-You have three model providers:
+You have four model providers:
 - OpenRouter for hosted models. This is the default provider.
 - Ollama for local models.
 - NVDA / NVIDIA for hosted models.
+- Unsloth for your own hosted OpenAI-compatible endpoint, like a local or SSH-served model on grizzly.
 
-Switching the model only changes the model within the current provider. If the user asks to use OpenRouter, switch_provider to openrouter. If they ask to use NVDA or NVIDIA, switch the provider to nvidia. If they ask for Ollama or local, switch back to Ollama.
+Switching the model only changes the model within the current provider. If the user asks to use OpenRouter, switch_provider to openrouter. If they ask to use Unsloth or grizzly, switch the provider to unsloth. If they ask to use NVDA or NVIDIA, switch the provider to nvidia. If they ask for Ollama or local, switch back to Ollama.
 
 Use query_providers when you need to inspect the active provider or the supported provider list.
 

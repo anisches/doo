@@ -11,6 +11,9 @@ const DEFAULTS = {
   ollama_model: 'qwen-a3b-32k:latest',
   ollama_host: 'http://localhost:11434',
   ollama_api_key: null,
+  unsloth_model: 'default',
+  unsloth_base_url: 'http://localhost:8888/v1',
+  unsloth_api_key: null,
   openrouter_model: 'nvidia/nemotron-3-super-120b-a12b:free',
   openrouter_base_url: 'https://openrouter.ai/api/v1',
   openrouter_api_key: null,
@@ -48,6 +51,10 @@ export class Config {
       return this.data.openrouter_model || DEFAULTS.openrouter_model;
     }
 
+    if (this.provider === 'unsloth') {
+      return this.data.unsloth_model || DEFAULTS.unsloth_model;
+    }
+
     if (this.provider === 'nvidia') {
       return this.data.nvidia_model || DEFAULTS.nvidia_model;
     }
@@ -58,6 +65,8 @@ export class Config {
   set model(value) {
     if (this.provider === 'openrouter') {
       this.data.openrouter_model = value;
+    } else if (this.provider === 'unsloth') {
+      this.data.unsloth_model = value;
     } else if (this.provider === 'nvidia') {
       this.data.nvidia_model = value;
     } else {
@@ -90,6 +99,14 @@ export class Config {
 
   get openrouterApiKey() {
     return process.env.OPENROUTER_API_KEY || this.data.openrouter_api_key || null;
+  }
+
+  get unslothBaseUrl() {
+    return process.env.UNSLOTH_BASE_URL || this.data.unsloth_base_url || 'http://localhost:8888/v1';
+  }
+
+  get unslothApiKey() {
+    return process.env.UNSLOTH_API_KEY || this.data.unsloth_api_key || null;
   }
 
   get nvidiaBaseUrl() {
