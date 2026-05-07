@@ -1,18 +1,17 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Config } from './config.ts';
 import { TOOLS, dispatch } from './tools/registry.ts';
-import { providerDisplayName, sendChat } from './providers.ts';
+import { providerDisplayName, sendChat, stripThinkingText } from './providers.ts';
 
 export const SYSTEM_PROMPT = `
 You are a helpful and friendly AI agent. Be conversational, clear, and a little fun. No need to be stiff.
 
-You have four model providers:
+You have three model providers:
 - OpenRouter for hosted models. This is the default provider.
 - Ollama for local models.
 - NVDA / NVIDIA for hosted models.
-- Unsloth for your own hosted OpenAI-compatible endpoint, like a local or SSH-served model on grizzly.
 
-Switching the model only changes the model within the current provider. If the user asks to use OpenRouter, switch_provider to openrouter. If they ask to use Unsloth or grizzly, switch the provider to unsloth. If they ask to use NVDA or NVIDIA, switch the provider to nvidia. If they ask for Ollama or local, switch back to Ollama.
+Switching the model only changes the model within the current provider. If the user asks to use OpenRouter, switch_provider to openrouter. If they ask to use NVDA or NVIDIA, switch the provider to nvidia. If they ask for Ollama or local, switch back to Ollama.
 
 Use query_providers when you need to inspect the active provider or the supported provider list.
 
@@ -71,7 +70,7 @@ function normalizeToolArgs(args) {
 function messageToHistory(message) {
   const entry = {
     role: message.role || 'assistant',
-    content: message.content || '',
+    content: stripThinkingText(message.content || ''),
   };
 
   if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
@@ -101,7 +100,7 @@ export async function runAgent(messages, config, hooks = {}) {
 
     const structuredCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
     const textCalls = !structuredCalls ? parseTextToolCalls(msg.content || '') : [];
-    const assistantText = String(msg.content || '').trim();
+    const assistantText = stripThinkingText(msg.content || '');
 
     if (!structuredCalls && textCalls.length === 0) {
       if (!assistantText && emptyRetries < 1) {
@@ -127,7 +126,7 @@ export async function runAgent(messages, config, hooks = {}) {
         ];
         const fallbackResponse = await sendChat(fallbackMessages, runtimeConfig, { tools: [] });
         const fallbackMsg = fallbackResponse || {};
-        const fallbackText = String(fallbackMsg.content || '').trim();
+        const fallbackText = stripThinkingText(fallbackMsg.content || '');
         if (fallbackText) {
           hooks.onAssistantMessage?.(fallbackText);
           messages.push(messageToHistory(fallbackMsg));
@@ -136,7 +135,7 @@ export async function runAgent(messages, config, hooks = {}) {
         }
       }
 
-      hooks.onAssistantMessage?.(msg.content || '');
+      hooks.onAssistantMessage?.(assistantText);
       messages.push(messageToHistory(msg));
       hooks.onStatus?.('ready');
       return assistantText;

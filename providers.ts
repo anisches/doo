@@ -10,15 +10,6 @@ const PROVIDERS = {
     endpoint: '/chat',
     defaultModel: 'qwen-a3b-32k:latest',
   },
-  unsloth: {
-    key: 'unsloth',
-    label: 'Unsloth',
-    envKey: 'UNSLOTH_API_KEY',
-    baseUrl: (config) => config.unslothBaseUrl,
-    apiKey: (config) => config.unslothApiKey,
-    endpoint: '/chat/completions',
-    defaultModel: 'default',
-  },
   nvidia: {
     key: 'nvidia',
     label: 'NVDA',
@@ -42,7 +33,6 @@ const PROVIDERS = {
 function normalizeProvider(value) {
   const v = String(value || '').trim().toLowerCase();
   if (v === 'nvda' || v === 'nvidia') return 'nvidia';
-  if (v === 'unsloth' || v === 'uns' || v === 'grizzly') return 'unsloth';
   if (v === 'openrouter' || v === 'router' || v === 'open' || v === 'or') return 'openrouter';
   if (v === 'ollama' || v === 'local' || v === '') return 'ollama';
   return 'ollama';
@@ -104,25 +94,28 @@ function normalizeMessage(response, provider) {
   const normalized = normalizeProvider(provider);
   if (normalized === 'ollama') {
     if (response?.message) {
-      return response.message;
+      return { ...response.message, content: stripThinkingText(response.message.content) };
     }
   } else {
     const message = response?.choices?.[0]?.message;
     if (message) {
-      return message;
+      return { ...message, content: stripThinkingText(message.content) };
     }
   }
 
   return { role: 'assistant', content: '' };
 }
 
+export function stripThinkingText(content) {
+  return String(content || '')
+    .replace(/<think>[\s\S]*?<\/think>\s*/gi, '')
+    .trim();
+}
+
 function currentModel(config, provider) {
   const normalized = normalizeProvider(provider);
   if (normalized === 'openrouter') {
     return config.openrouter_model || PROVIDERS.openrouter.defaultModel;
-  }
-  if (normalized === 'unsloth') {
-    return config.unsloth_model || PROVIDERS.unsloth.defaultModel;
   }
   if (normalized === 'nvidia') {
     return config.nvidia_model || PROVIDERS.nvidia.defaultModel;
@@ -171,12 +164,14 @@ export function sendChat(messages, config, options = {}) {
   const provider = normalizeProvider(runtimeConfig.provider);
   const spec = providerSpec(provider);
   const tools = Array.isArray(options.tools) ? options.tools : [];
+  const model = currentModel(runtimeConfig, provider);
   const body = {
-    model: currentModel(runtimeConfig, provider),
     messages,
     tools,
     stream: false,
   };
+
+  body.model = model;
 
   return fetch(providerUrl(runtimeConfig, provider), {
     method: 'POST',

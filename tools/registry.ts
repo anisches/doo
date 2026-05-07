@@ -75,13 +75,13 @@ export const TOOLS = [
     function: {
       name: 'switch_provider',
       description:
-        'Switch the active model provider. Use this when the user asks for OpenRouter, Unsloth, NVDA/NVIDIA, or Ollama/local. This does not change the model unless you pass one explicitly.',
+        'Switch the active model provider. Use this when the user asks for OpenRouter, NVDA/NVIDIA, or Ollama/local. This does not change the model unless you pass one explicitly.',
       parameters: {
         type: 'object',
         properties: {
           provider: {
             type: 'string',
-            enum: ['openrouter', 'ollama', 'nvidia', 'nvda', 'unsloth'],
+            enum: ['openrouter', 'ollama', 'nvidia', 'nvda'],
             description: 'The provider to use',
           },
           model: {
@@ -219,13 +219,13 @@ export const TOOLS = [
     function: {
       name: 'set_config',
       description:
-        'Save a configuration value or primitive memory field. Use this when the user wants to set an API key, change a host URL, switch providers, or store a required memory primitive. Known keys: provider, model, ollama_api_key, ollama_host, unsloth_api_key, unsloth_base_url, unsloth_model, openrouter_api_key, openrouter_base_url, nvidia_api_key, nvidia_base_url, user_name, agent_name, interests.',
+        'Save a configuration value or primitive memory field. Use this when the user wants to set an API key, change a host URL, switch providers, or store a required memory primitive. Known keys: provider, model, ollama_api_key, ollama_host, openrouter_api_key, openrouter_base_url, nvidia_api_key, nvidia_base_url, user_name, agent_name, interests.',
       parameters: {
         type: 'object',
         properties: {
           key: {
             type: 'string',
-            description: 'Config key, e.g. provider, model, ollama_api_key, openrouter_api_key, unsloth_api_key, or nvidia_api_key',
+            description: 'Config key, e.g. provider, model, ollama_api_key, openrouter_api_key, or nvidia_api_key',
           },
           value: {
             type: 'string',
@@ -265,8 +265,6 @@ export async function dispatch(name, args, config) {
     const label =
       provider === 'openrouter'
         ? 'OpenRouter'
-        : provider === 'unsloth'
-          ? 'Unsloth'
         : provider === 'nvidia'
           ? 'NVDA'
           : 'Ollama';
