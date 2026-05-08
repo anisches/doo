@@ -26,6 +26,12 @@ type LogEntry = {
 type TuiState = {
   busy: boolean;
   status: string;
+  activity: string;
+  plannerAction: string;
+  plannerReason: string;
+  debug: boolean;
+  lastTool: string;
+  lastResult: string;
   exit: boolean;
   startedAt: number;
   turnCount: number;
@@ -317,6 +323,30 @@ function recentToolTrail(logs: LogEntry[]) {
     .map((entry) => entry.text);
 }
 
+function renderDebugPanel(config: TuiConfig, state: TuiState, logs: LogEntry[], memory: ReturnType<typeof loadMemoryData>) {
+  const primitives = memory.primitives || {};
+  const pending = getMissingPrimitives(memory);
+  const lines = [
+    sectionTitle('Debug'),
+    `  - activity: ${state.activity || state.status}`,
+    `  - status: ${state.status}`,
+    `  - plan: ${state.plannerAction || '-'}`,
+    `  - reason: ${state.plannerReason || '-'}`,
+    `  - provider: ${providerDisplayName(config.provider)}`,
+    `  - model: ${config.model}`,
+    `  - last tool: ${state.lastTool || '-'}`,
+    `  - last result: ${state.lastResult || '-'}`,
+    `  - turn: ${state.turnCount}`,
+    `  - missing: ${pending.length ? pending.join(', ') : 'none'}`,
+    `  - agent: ${primitives.agent_name || '-'}`,
+    '',
+    sectionTitle('Recent Tools'),
+    ...(recentToolTrail(logs).length ? recentToolTrail(logs).map((line) => `  - ${line}`) : [dim('  - none')]),
+    '',
+  ];
+  return lines;
+}
+
 function availableCommands() {
   return [
     '/help   show commands',
@@ -325,6 +355,7 @@ function availableCommands() {
     '/memory show the current memory snapshot',
     '/providers show provider catalog',
     '/tools show tool catalog',
+    '/debug toggle debug view',
     '/exit   quit the app',
   ];
 }
@@ -342,6 +373,12 @@ export async function runTui(config: TuiConfig) {
   const state: TuiState = {
     busy: false,
     status: 'idle',
+    activity: 'idle',
+    plannerAction: '',
+    plannerReason: '',
+    debug: false,
+    lastTool: '',
+    lastResult: '',
     exit: false,
     startedAt: Date.now(),
     turnCount: 0,
@@ -378,13 +415,17 @@ export async function runTui(config: TuiConfig) {
     const pending = getMissingPrimitives(memory);
     const statusLine = [
       `state: ${state.status}`,
+      `activity: ${state.activity}`,
+      `plan: ${state.plannerAction || 'none'}`,
       `turns: ${state.turnCount}`,
       `uptime: ${formatDuration(Date.now() - state.startedAt)}`,
       pending.length ? `missing: ${pending.join(', ')}` : 'missing: none',
+      state.debug ? 'debug: on' : 'debug: off',
     ].join(' | ');
 
     const transcript = renderTranscriptLines(logs, width, agentTitle);
-    const left = truncateLines(transcript, usableLines);
+    const debugLines = state.debug ? renderDebugPanel(config, state, logs, memory) : [];
+    const left = truncateLines(transcript, Math.max(6, usableLines - debugLines.length));
 
     process.stdout.write('\x1b[2J\x1b[H');
     process.stdout.write(`${bold('doo')} ${dim('workspace terminal')}\n`);
@@ -398,10 +439,16 @@ export async function runTui(config: TuiConfig) {
       process.stdout.write(`${left[i]}\n`);
     }
 
+    if (state.debug) {
+      for (const line of debugLines) {
+        process.stdout.write(`${line}\n`);
+      }
+    }
+
     process.stdout.write(`${'-'.repeat(Math.min(width, 120))}\n`);
     const promptHint = state.busy
       ? dim('assistant is working')
-      : dim('enter to send, /help, /providers, /tools, /memory');
+      : dim('enter to send, /help, /providers, /tools, /memory, /debug');
     const prompt = `${cyan('you')} > ${input.value || dim('type a message')}`;
     process.stdout.write(`${prompt}\n`);
     process.stdout.write(`${promptHint}\n`);
@@ -448,6 +495,12 @@ export async function runTui(config: TuiConfig) {
     pushLog('system', renderToolCatalog());
   };
 
+  const toggleDebug = () => {
+    state.debug = !state.debug;
+    state.activity = state.debug ? 'debug enabled' : 'debug disabled';
+    pushLog('system', `debug ${state.debug ? 'on' : 'off'}`);
+  };
+
   const resetSession = () => {
     conversation.splice(1);
     userHistory.splice(0);
@@ -485,6 +538,9 @@ export async function runTui(config: TuiConfig) {
       case 'tools':
         showTools();
         return true;
+      case 'debug':
+        toggleDebug();
+        return true;
       case 'exit':
       case 'quit':
         state.exit = true;
@@ -521,6 +577,7 @@ export async function runTui(config: TuiConfig) {
 
     state.busy = true;
     state.status = 'thinking';
+    state.activity = 'preparing message';
     state.turnCount += 1;
     pushLog('user', text);
     render();
@@ -538,18 +595,31 @@ export async function runTui(config: TuiConfig) {
       silent: true,
       onStatus: (status: string) => {
         state.status = status;
+        state.activity = status;
+        render();
+      },
+      onPlan: (plan: { action?: string; reason?: string }) => {
+        state.plannerAction = plan?.action || '';
+        state.plannerReason = plan?.reason || '';
+        state.activity = `plan:${state.plannerAction || 'unknown'}`;
         render();
       },
       onToolCall: ({ name, args }: { name: string; args: Record<string, unknown> }) => {
         const label = name || 'unknown';
         pushLog('tool', `-> ${label}(${JSON.stringify(args)})`);
         state.status = `tool:${label}`;
+        state.activity = `tool:${label}`;
+        state.lastTool = label;
         render();
       },
       onToolResult: ({ name, result }: { name: string; result: string }) => {
         const label = name || 'unknown';
-        pushLog('tool', `<- ${label}: ${String(result).slice(0, 220)}`);
+        const preview = String(result).slice(0, 220);
+        pushLog('tool', `<- ${label}: ${preview}`);
         state.status = `tool:${label}:done`;
+        state.activity = `tool:${label}:done`;
+        state.lastTool = label;
+        state.lastResult = preview;
         render();
       },
       onAssistantMessage: (content: string) => {
@@ -563,10 +633,12 @@ export async function runTui(config: TuiConfig) {
       conversation.push({ role: 'assistant', content: reply });
       watchTurn(text, reply, config);
       state.status = 'ready';
+      state.activity = 'ready';
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       pushLog('status', `error: ${message}`);
       state.status = 'error';
+      state.activity = 'error';
     } finally {
       state.busy = false;
       render();

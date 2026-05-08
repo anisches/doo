@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Config } from './config.ts';
-import { TOOLS, dispatch } from './tools/registry.ts';
+import { planAction } from './planner.ts';
+import { TOOLS, dispatch, renderToolCatalog } from './tools/registry.ts';
 import { providerDisplayName, sendChat, stripThinkingText } from './providers.ts';
 
 export const SYSTEM_PROMPT = `
@@ -81,11 +82,6 @@ function messageToHistory(message) {
   return entry;
 }
 
-function isLiveInfoQuery(text) {
-  const value = String(text || '').toLowerCase();
-  return /\b(latest|current|today|news|breaking|price|stock|stocks|earnings|market|now|recent|update|updates|headlines)\b/.test(value);
-}
-
 function buildLiveSearchContext(query, results) {
   return [
     'Live search results for the user query are below.',
@@ -100,13 +96,28 @@ export async function runAgent(messages, config, hooks = {}) {
   const runtimeConfig = config instanceof Config ? config : config;
   let emptyRetries = 0;
   let fallbackRetries = 0;
-  const liveUserText = [...messages].reverse().find((message) => message?.role === 'user')?.content || '';
-  const needsLiveInfo = isLiveInfoQuery(liveUserText);
-  const liveSearchResults = needsLiveInfo
-    ? String(await dispatch('web_search', { query: liveUserText }, runtimeConfig) || '').trim()
-    : '';
+  const plan = planAction(messages, runtimeConfig);
+  hooks.onPlan?.(plan);
+  hooks.onStatus?.(`plan:${plan.action}`);
 
-  if (needsLiveInfo && liveSearchResults.startsWith('MISSING_OLLAMA_API_KEY')) {
+  if (plan.action === 'ask_clarifying_question') {
+    const reply =
+      `I need a bit more detail to help with "${plan.query || 'that'}".` +
+      ' Give me one clear sentence with the exact task.';
+    hooks.onAssistantMessage?.(reply);
+    messages.push({ role: 'assistant', content: reply });
+    hooks.onStatus?.('ready');
+    return reply;
+  }
+
+  let liveSearchResults = '';
+  if (plan.action === 'use_web_search') {
+    hooks.onStatus?.('search:web');
+    liveSearchResults = String(await dispatch('web_search', { query: plan.query || '' }, runtimeConfig) || '').trim();
+    hooks.onStatus?.('search:web:done');
+  }
+
+  if (plan.action === 'use_web_search' && liveSearchResults.startsWith('MISSING_OLLAMA_API_KEY')) {
     hooks.onStatus?.('ready');
     hooks.onAssistantMessage?.(liveSearchResults);
     messages.push({ role: 'assistant', content: liveSearchResults });
@@ -118,14 +129,22 @@ export async function runAgent(messages, config, hooks = {}) {
     if (!hooks.silent) {
       process.stdout.write(`\n[${providerDisplayName(runtimeConfig.provider)}:${runtimeConfig.model}] thinking...\r`);
     }
-    const requestMessages = needsLiveInfo
+    const requestMessages = plan.action === 'use_web_search'
       ? [
           ...messages,
           {
             role: 'system',
-            content: buildLiveSearchContext(liveUserText, liveSearchResults || 'No live results were returned.'),
+            content: buildLiveSearchContext(plan.query || '', liveSearchResults || 'No live results were returned.'),
           },
         ]
+      : plan.action === 'use_tools'
+        ? [
+            ...messages,
+            {
+              role: 'system',
+              content: `Available tools for this task:\n${renderToolCatalog()}`,
+            },
+          ]
       : messages;
     const response = await sendChat(requestMessages, runtimeConfig, { tools: TOOLS });
     if (!hooks.silent) {
