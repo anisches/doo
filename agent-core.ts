@@ -86,12 +86,13 @@ function isLiveInfoQuery(text) {
   return /\b(latest|current|today|news|breaking|price|stock|stocks|earnings|market|now|recent|update|updates|headlines)\b/.test(value);
 }
 
-function buildLiveInfoReminder(userText) {
+function buildLiveSearchContext(query, results) {
   return [
-    'The user is asking for time-sensitive or current information.',
-    'Use web_search before answering.',
-    'Do not answer from memory if a live search can help.',
-    `User query: ${userText}`,
+    'Live search results for the user query are below.',
+    'Use these results directly and do not answer from memory if the results are relevant.',
+    `Query: ${query}`,
+    '',
+    results,
   ].join('\n');
 }
 
@@ -101,6 +102,16 @@ export async function runAgent(messages, config, hooks = {}) {
   let fallbackRetries = 0;
   const liveUserText = [...messages].reverse().find((message) => message?.role === 'user')?.content || '';
   const needsLiveInfo = isLiveInfoQuery(liveUserText);
+  const liveSearchResults = needsLiveInfo
+    ? String(await dispatch('web_search', { query: liveUserText }, runtimeConfig) || '').trim()
+    : '';
+
+  if (needsLiveInfo && liveSearchResults.startsWith('MISSING_OLLAMA_API_KEY')) {
+    hooks.onStatus?.('ready');
+    hooks.onAssistantMessage?.(liveSearchResults);
+    messages.push({ role: 'assistant', content: liveSearchResults });
+    return liveSearchResults;
+  }
 
   for (; ;) {
     hooks.onStatus?.('thinking');
@@ -112,7 +123,7 @@ export async function runAgent(messages, config, hooks = {}) {
           ...messages,
           {
             role: 'system',
-            content: buildLiveInfoReminder(liveUserText),
+            content: buildLiveSearchContext(liveUserText, liveSearchResults || 'No live results were returned.'),
           },
         ]
       : messages;
