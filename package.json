@@ -9,5 +9,8 @@
   "scripts": {
     "start": "node --experimental-strip-types start.ts",
     "telegram": "node --experimental-strip-types main.ts telegram"
+  },
+  "dependencies": {
+    "playwright": "^1.59.1"
   }
 }

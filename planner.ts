@@ -16,6 +16,11 @@ function isToolInquiry(text) {
   return /\b(tool|tools|capabilities|available tools|what can you do|query_tools|provider|providers)\b/.test(value);
 }
 
+function isPageExtractionQuery(text) {
+  const value = String(text || '').toLowerCase();
+  return /\b(page|webpage|web page|article|link|url|summarize this|summarise this|extract|read this)\b/.test(value);
+}
+
 function needsClarification(text) {
   const value = String(text || '').trim().toLowerCase();
   if (!value) return true;
@@ -44,6 +49,17 @@ function fallbackPlan(messages, config) {
       query: userText,
       tool_catalog: renderToolCatalog(),
       provider: providerInfo?.label || config.provider,
+    };
+  }
+
+  if (isPageExtractionQuery(userText)) {
+    return {
+      action: 'use_tools',
+      reason: 'user asked for webpage or article content extraction',
+      query: userText,
+      tools: ['fetch_page'],
+      provider: providerInfo?.label || config.provider,
+      note: 'fetch the page content first, then summarize only from that content',
     };
   }
 
@@ -115,6 +131,7 @@ function buildPlannerPrompt(messages, config) {
     '',
     'Decision rules:',
     '- use_web_search for current, latest, news, price, earnings, market, or other time-sensitive requests.',
+    '- use_tools when the user wants to summarize a page, extract webpage content, or inspect a URL.',
     '- use_tools when the user asks about tools, files, shell, providers, or capabilities.',
     '- ask_clarifying_question when the request is too short or ambiguous.',
     '- answer_directly when no tool is needed.',

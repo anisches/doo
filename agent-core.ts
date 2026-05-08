@@ -16,6 +16,7 @@ Switching the model only changes the model within the current provider. If the u
 
 Use query_providers when you need to inspect the active provider or the supported provider list.
 Use query_tools when you need the live tool catalog or want to decide which tools are relevant before acting.
+Use fetch_page when you need the readable content of a specific webpage, article, or URL before summarizing it.
 
 If web_search returns a message starting with MISSING_OLLAMA_API_KEY:
   1. Tell the user you need an Ollama API key to search the web.

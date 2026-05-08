@@ -1,4 +1,5 @@
 import { search } from './web-search.ts';
+import { fetchPageContent } from './page-fetch.ts';
 import { readFile, writeFile, editFile } from './file-ops.ts';
 import { callOllama } from './ollama.ts';
 import { runCommand } from './shell.ts';
@@ -20,6 +21,20 @@ export const TOOLS = [
           query: { type: 'string', description: 'The search query' },
         },
         required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'fetch_page',
+      description: 'Fetch a webpage with Playwright and return the readable page content for summarization.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'Absolute URL to fetch' },
+        },
+        required: ['url'],
       },
     },
   },
@@ -253,6 +268,10 @@ export const TOOLS = [
 export async function dispatch(name, args, config) {
   if (name === 'web_search') {
     return search(args.query, config);
+  }
+
+  if (name === 'fetch_page') {
+    return fetchPageContent(args.url);
   }
 
   if (name === 'run_command') {
