@@ -108,6 +108,18 @@ export const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'query_tools',
+      description: 'Get the current tool catalog so the agent can plan which tools to use before acting.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'read_file',
       description: 'Read the contents of a file from the filesystem.',
       parameters: {
@@ -275,6 +287,10 @@ export async function dispatch(name, args, config) {
     return describeProviders(config);
   }
 
+  if (name === 'query_tools') {
+    return renderToolCatalog();
+  }
+
   if (name === 'read_file') {
     return readFile(args.path);
   }
@@ -321,4 +337,16 @@ export async function dispatch(name, args, config) {
   }
 
   return `Unknown tool: ${name}`;
+}
+
+export function renderToolCatalog() {
+  const lines = ['## Tool Catalog'];
+
+  for (const tool of TOOLS) {
+    const name = tool?.function?.name || 'unknown';
+    const description = tool?.function?.description || '';
+    lines.push(`- ${name}: ${description}`);
+  }
+
+  return lines.join('\n');
 }

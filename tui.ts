@@ -13,6 +13,7 @@ import {
 import { watchTurn } from './memory/watcher.ts';
 import { startScheduler } from './scheduler.ts';
 import { describeProviders, providerDisplayName } from './providers.ts';
+import { renderToolCatalog } from './tools/registry.ts';
 
 type LogKind = 'system' | 'user' | 'assistant' | 'tool' | 'status' | 'scheduled' | 'command';
 
@@ -323,6 +324,7 @@ function availableCommands() {
     '/reset  clear session state',
     '/memory show the current memory snapshot',
     '/providers show provider catalog',
+    '/tools show tool catalog',
     '/exit   quit the app',
   ];
 }
@@ -399,7 +401,7 @@ export async function runTui(config: TuiConfig) {
     process.stdout.write(`${'-'.repeat(Math.min(width, 120))}\n`);
     const promptHint = state.busy
       ? dim('assistant is working')
-      : dim('enter to send, /help, /providers, /memory');
+      : dim('enter to send, /help, /providers, /tools, /memory');
     const prompt = `${cyan('you')} > ${input.value || dim('type a message')}`;
     process.stdout.write(`${prompt}\n`);
     process.stdout.write(`${promptHint}\n`);
@@ -442,6 +444,10 @@ export async function runTui(config: TuiConfig) {
     pushLog('system', describeProviders(config));
   };
 
+  const showTools = () => {
+    pushLog('system', renderToolCatalog());
+  };
+
   const resetSession = () => {
     conversation.splice(1);
     userHistory.splice(0);
@@ -475,6 +481,9 @@ export async function runTui(config: TuiConfig) {
         return true;
       case 'providers':
         showProviders();
+        return true;
+      case 'tools':
+        showTools();
         return true;
       case 'exit':
       case 'quit':

@@ -14,6 +14,7 @@ You have three model providers:
 Switching the model only changes the model within the current provider. If the user asks to use OpenRouter, switch_provider to openrouter. If they ask to use NVDA or NVIDIA, switch the provider to nvidia. If they ask for Ollama or local, switch back to Ollama.
 
 Use query_providers when you need to inspect the active provider or the supported provider list.
+Use query_tools when you need the live tool catalog or want to decide which tools are relevant before acting.
 
 If web_search returns a message starting with MISSING_OLLAMA_API_KEY:
   1. Tell the user you need an Ollama API key to search the web.
@@ -80,17 +81,42 @@ function messageToHistory(message) {
   return entry;
 }
 
+function isLiveInfoQuery(text) {
+  const value = String(text || '').toLowerCase();
+  return /\b(latest|current|today|news|breaking|price|stock|stocks|earnings|market|now|recent|update|updates|headlines)\b/.test(value);
+}
+
+function buildLiveInfoReminder(userText) {
+  return [
+    'The user is asking for time-sensitive or current information.',
+    'Use web_search before answering.',
+    'Do not answer from memory if a live search can help.',
+    `User query: ${userText}`,
+  ].join('\n');
+}
+
 export async function runAgent(messages, config, hooks = {}) {
   const runtimeConfig = config instanceof Config ? config : config;
   let emptyRetries = 0;
   let fallbackRetries = 0;
+  const liveUserText = [...messages].reverse().find((message) => message?.role === 'user')?.content || '';
+  const needsLiveInfo = isLiveInfoQuery(liveUserText);
 
   for (; ;) {
     hooks.onStatus?.('thinking');
     if (!hooks.silent) {
       process.stdout.write(`\n[${providerDisplayName(runtimeConfig.provider)}:${runtimeConfig.model}] thinking...\r`);
     }
-    const response = await sendChat(messages, runtimeConfig, { tools: TOOLS });
+    const requestMessages = needsLiveInfo
+      ? [
+          ...messages,
+          {
+            role: 'system',
+            content: buildLiveInfoReminder(liveUserText),
+          },
+        ]
+      : messages;
+    const response = await sendChat(requestMessages, runtimeConfig, { tools: TOOLS });
     if (!hooks.silent) {
       process.stdout.write('\x1b[2K\r');
     }

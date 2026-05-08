@@ -1,10 +1,12 @@
 import { bootRhizome } from './rhizome.ts';
 import { bootIdentity } from './identity.ts';
+import { bootPlanning } from './planning.ts';
 import { bootMemory } from './memory.ts';
 
 const BRANCHES = [
-  () => bootRhizome(),
   () => bootIdentity(),
+  () => bootPlanning(),
+  () => bootRhizome(),
   () => bootMemory(),
 ];
 
