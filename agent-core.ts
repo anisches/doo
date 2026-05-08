@@ -96,7 +96,7 @@ export async function runAgent(messages, config, hooks = {}) {
   const runtimeConfig = config instanceof Config ? config : config;
   let emptyRetries = 0;
   let fallbackRetries = 0;
-  const plan = planAction(messages, runtimeConfig);
+  const plan = await planAction(messages, runtimeConfig);
   hooks.onPlan?.(plan);
   hooks.onStatus?.(`plan:${plan.action}`);
 
